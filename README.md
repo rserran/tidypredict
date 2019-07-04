@@ -3,7 +3,7 @@
 
 [![Build
 Status](https://travis-ci.org/tidymodels/tidypredict.svg?branch=master)](https://travis-ci.org/tidymodels/tidypredict)
-[![CRAN\_Status\_Badge](http://www.r-pkg.org/badges/version/tidypredict)](http://cran.r-project.org/package=tidypredict)
+[![CRAN\_Status\_Badge](http://www.r-pkg.org/badges/version/tidypredict)](https://cran.r-project.org/package=tidypredict)
 [![Coverage
 Status](https://img.shields.io/codecov/c/github/tidymodels/tidypredict/master.svg)](https://codecov.io/github/tidymodels/tidypredict?branch=master)
 
@@ -23,8 +23,21 @@ The following models are supported by `tidypredict`:
   - Random Forest models - `randomForest::randomForest()`
   - Random Forest models, via `ranger` - `ranger::ranger()`
   - MARS models - `earth::earth()`
-  - XGBoost models - `xgboost::xgb.Booster.complete()`
-  - Cubist models - `Cubist::cubist()`
+  - XGBoost models - `xgboost::xgb.Booster.complete()` \[In development
+    version\]
+  - Cubist models - `Cubist::cubist()` \[In development version\]
+  - Tree models, via `partykit` - `partykit::ctree()` \[In development
+    version\]
+
+It supports models fitted via `parsnip`. The ones confirmed currently
+work in `tidypredict` are:
+
+  - `lm()` - `parsnip`: `linear_reg()` with *“lm”* as the engine.
+  - `randomForest::randomForest()` - `parsnip`: `rand_forest()` with
+    *“randomForest”* as the engine.
+  - `ranger` - `ranger::ranger()` - `parsnip`: `rand_forest()` with
+    *“ranger”* as the engine.
+  - `earth::earth()` - `parsnip`: `mars()` with *“earth”* as the engine.
 
 ## Installation
 

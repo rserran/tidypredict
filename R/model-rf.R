@@ -1,6 +1,6 @@
 # Model parser -------------------------------------
 
-get_rf_path <- function(row_id, tree, columns) {
+get_rf_path <- function(row_id, tree, columns, default_op = TRUE) {
   find <- row_id
   path <- row_id
   for (j in row_id:1) {
@@ -15,8 +15,13 @@ get_rf_path <- function(row_id, tree, columns) {
     path[2:length(path)],
     ~ {
       rb <- tree[.y, ]
-      if (rb["left daughter"] == .x) op <- "under"
-      if (rb["right daughter"] == .x) op <- "over"
+      if(default_op) {
+        if (rb["left daughter"] == .x) op <-  "less"
+        if (rb["right daughter"] == .x) op <- "more-equal"
+      } else {
+        if (rb["left daughter"] == .x) op <- "less-equal"
+        if (rb["right daughter"] == .x) op <- "more"    
+      }
       list(
         type = "conditional",
         col = columns[rb["split var"]],
@@ -29,7 +34,7 @@ get_rf_path <- function(row_id, tree, columns) {
 
 get_rf_tree <- function(tree_no, model) {
   predictions <- model$classes
-  term_labels <- attr(model$terms, "term.labels")
+  term_labels <- names(model$forest$ncat)
   tree <- randomForest::getTree(model, tree_no)
   paths <- seq_len(nrow(tree))[tree[, "status"] == -1]
   purrr::map(
@@ -66,8 +71,10 @@ get_rf_case <- function(path, prediction, calc_mode = "") {
   cl <- map(
     path,
     ~ {
-      if (.x$op == "over") i <- expr(!!sym(.x$col) >= !!.x$val)
-      if (.x$op == "under") i <- expr(!!sym(.x$col) < !!.x$val)
+      if (.x$op == "more-equal") i <- expr(!!sym(.x$col) >= !!.x$val)
+      if (.x$op == "less") i <- expr(!!sym(.x$col) < !!.x$val)
+      if (.x$op == "more") i <- expr(!!sym(.x$col) > !!.x$val)
+      if (.x$op == "less-equal") i <- expr(!!sym(.x$col) <= !!.x$val)
       i
     }
   )

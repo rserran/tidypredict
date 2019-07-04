@@ -13,13 +13,13 @@ It parses a fitted 'R' model object, and returns a formula
     It works with several databases back-ends because it leverages 'dplyr'
     and 'dbplyr' for the final 'SQL' translation of the algorithm. It currently
     supports lm(), glm(), randomForest(), ranger(), earth(), xgb.Booster.complete(),
-    and cubist() models.
+    cubist(), and ctree() models.
 }
 \seealso{
 Useful links:
 \itemize{
-  \item \url{http://tidypredict.netlify.com/}
-  \item Report bugs at \url{https://github.com/edgararuiz/tidypredict/issues}
+  \item \url{https://tidymodels.github.io/tidypredict}
+  \item Report bugs at \url{https://github.com/tidymodels/tidypredict/issues}
 }
 
 }

@@ -1,10 +1,14 @@
-# tidypredict (development version)
+# tidypredict 0.3.0.9001
 
 ## New features
 
+- Adds initial support for `partykit`'s `ctree()` model
+
+- Adds support for `parsnip` fitted models: `lm`, `randomForest`, `ranger`, and `earth`
+
 - Adds support for xgb.Booster models provided by the `xgboost` package (@Athospd, #43)
 
-- Adds support for `Cubist::cubist()` models
+- Adds support for `Cubist::cubist()` models (# 36)
 
 # tidypredict 0.3.0
 

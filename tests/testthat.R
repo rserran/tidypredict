@@ -3,10 +3,9 @@ library(tidypredict)
 library(xgboost)
 library(purrr)
 library(dplyr)
-library(RSQLite)
-library(DBI)
 library(Cubist)
 library(mlbench)
-
+library(rlang)
+library(partykit)
 
 test_check("tidypredict")
