@@ -30,7 +30,6 @@ build_fit_formula <- function(parsedmodel) {
                 f <- expr(ifelse(!!sym(.x$col) > !!.x$val, !!sym(.x$col) - !!.x$val, 0))
               if(.x$op == "lessthan") 
                 f <- expr(ifelse(!!sym(.x$col) < !!.x$val, !!.x$val - !!sym(.x$col), 0))
-              
             }
             f
           }
@@ -88,6 +87,7 @@ parse_model_lm <- function(model) {
   pm <- list()
   pm$general$model <- class(model)[[1]]
   pm$general$version <- 2
+  pm$general$type <- "regression"
   pm$general$residual <- model$df.residual
 
   if (length(summary(model)$sigma^2) > 0) {
