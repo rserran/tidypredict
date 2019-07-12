@@ -33,14 +33,33 @@ tidypredict_sql(model, dbplyr::simulate_mssql())
 Install `tidypredict` from CRAN using:
 
 ``` r
-install.packages("tidypredict")
+# install.packages("tidypredict")
 ```
 
 Or install the **development version** using `devtools` as follows:
 
 ``` r
-devtools::install_github("tidymodels/tidypredict")
+# install.packages("remotes")
+# remotes::install_github("tidymodels/tidypredict")
 ```
+
+## Functions
+
+`tidypredict` has only a few functions, and it is not expected that
+number to grow much. The main focus at this time is to add more models
+to
+support.
+
+| Function                     | Description                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| `tidypredict_fit()`          | Returns an R formula that calculates the prediction                            |
+| `tidypredict_sql()`          | Returns a SQL query based on the formula from `tidypredict_fit()`              |
+| `tidypredict_to_column()`    | Adds a new column using the formula from `tidypredict_fit()`                   |
+| `tidypredict_test()`         | Tests `tidyverse` predictions against the model’s native `predict()` function  |
+| `tidypredict_interval()`     | Same as `tidypredict_fit()` but for intervals (only works with `lm` and `glm`) |
+| `tidypredict_sql_interval()` | Same as `tidypredict_sql()` but for intervals (only works with `lm` and `glm`) |
+| `parse_model()`              | Creates a list spec based on the R model                                       |
+| `as_parsed_model()`          | Prepares an object to be recognized as a parsed model                          |
 
 ## How it works
 
@@ -82,13 +101,11 @@ The following models are supported by `tidypredict`:
   - Random Forest models - `randomForest::randomForest()`
   - Random Forest models, via `ranger` - `ranger::ranger()`
   - MARS models - `earth::earth()`
-  - XGBoost models - `xgboost::xgb.Booster.complete()` **\[In
-    development version\]**
-  - Cubist models - `Cubist::cubist()` **\[In development version\]**
-  - Tree models, via `partykit` - `partykit::ctree()` **\[In development
-    version\]**
+  - XGBoost models - `xgboost::xgb.Booster.complete()`
+  - Cubist models - `Cubist::cubist()`
+  - Tree models, via `partykit` - `partykit::ctree()`
 
-### `parsnip` **\[In development version\]**
+### `parsnip`
 
 `tidypredict` supports models fitted via the `parsnip` interface. The
 ones confirmed currently work in `tidypredict` are:
@@ -99,3 +116,28 @@ ones confirmed currently work in `tidypredict` are:
   - `ranger::ranger()` - `parsnip`: `rand_forest()` with *“ranger”* as
     the engine.
   - `earth::earth()` - `parsnip`: `mars()` with *“earth”* as the engine.
+
+### `broom`
+
+The `tidy()` function from broom works with linear models parsed via
+`tidypredict`
+
+``` r
+pm <- parse_model(lm(wt ~ ., mtcars))
+tidy(pm)
+```
+
+    ## # A tibble: 11 x 2
+    ##    term        estimate
+    ##    <chr>          <dbl>
+    ##  1 (Intercept) -0.231  
+    ##  2 mpg         -0.0417 
+    ##  3 cyl         -0.0573 
+    ##  4 disp         0.00669
+    ##  5 hp          -0.00323
+    ##  6 drat        -0.0901 
+    ##  7 qsec         0.200  
+    ##  8 vs          -0.0664 
+    ##  9 am           0.0184 
+    ## 10 gear        -0.0935 
+    ## 11 carb         0.249

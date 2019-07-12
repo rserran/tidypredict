@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Articles • tidypredict</title>
+<title>Prepares parsed model object — as_parsed_model • tidypredict</title>
 
 <!-- jquery -->
 <script src="https://code.jquery.com/jquery-3.1.0.min.js" integrity="sha384-nrOSfDHtoPMzJHjVTdCopGqIqeYETSXhZDFyniQ8ZHcVy08QesyHcnOUpMpqnmWq" crossorigin="anonymous"></script>
@@ -31,12 +31,14 @@
 
 
 
-<meta property="og:title" content="Articles" />
+<meta property="og:title" content="Prepares parsed model object — as_parsed_model" />
+
+<meta property="og:description" content="Prepares parsed model object" />
 
 <meta property="og:image" content="/logo.png" />
 <meta name="twitter:card" content="summary" />
 
-<meta name="robots" content="noindex">
+
 
 <!-- mathjax -->
 <script src='https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>
@@ -58,7 +60,7 @@
   </head>
 
   <body>
-    <div class="container template-article-index">
+    <div class="container template-reference-topic">
       <header>
       <div class="navbar navbar-default navbar-fixed-top" role="navigation">
   <div class="container">
@@ -74,20 +76,41 @@
         <a class="navbar-brand" href="../index.html">tidypredict</a>
         <div class="info">
           <span class="partof">part of <a href="https://github.com/tidymodels">tidymodels</a></span>
-          <span class="version version-danger" data-toggle="tooltip" data-placement="bottom" title="In-development version">0.3.0.9001</span>
+          <span class="version version-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.4.0</span>
         </div>
       </div>
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav navbar-right">
-        <li>
-  <a href="../index.html">
-    <span class="fa fa-home fa-lg"></span>
+        <li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Model list
      
+    <span class="caret"></span>
   </a>
-</li>
-<li>
-  <a href="../reference/index.html">Reference</a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="../articles/lm.html">Linear Regression - lm()</a>
+    </li>
+    <li>
+      <a href="../articles/glm.html">Generalized Regression - glm()</a>
+    </li>
+    <li>
+      <a href="../articles/ranger.html">Random Forest - Ranger - ranger()</a>
+    </li>
+    <li>
+      <a href="../articles/rf.html">Random Forest - randomForest()</a>
+    </li>
+    <li>
+      <a href="../articles/mars.html">MARS - earth()</a>
+    </li>
+    <li>
+      <a href="../articles/cubist.html">Cubist - cubist()</a>
+    </li>
+    <li>
+      <a href="../articles/xgboost.html">XGboost - xgb.Booster.complete()</a>
+    </li>
+  </ul>
 </li>
 <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
@@ -97,33 +120,29 @@
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="../articles/glm.html">Generalized Linear Regression</a>
+      <a href="../articles/save.html">Save/Reload</a>
+    </li>
+    <li class="divider"></li>
+    <li>
+      <a href="../articles/non-r.html">Non-R models</a>
     </li>
     <li>
-      <a href="../articles/lm.html">Linear Regression</a>
+      <a href="../articles/regression.html">Regression spec</a>
     </li>
     <li>
-      <a href="../articles/ranger.html">Random Forest, using Ranger</a>
+      <a href="../articles/tree.html">Tree model spec</a>
     </li>
+    <li class="divider"></li>
     <li>
-      <a href="../articles/regression.html">Create a regression spec - version 2</a>
-    </li>
-    <li>
-      <a href="../articles/rf.html">Random Forest</a>
-    </li>
-    <li>
-      <a href="../articles/save.html">Save and re-load models</a>
-    </li>
-    <li>
-      <a href="../articles/sql.html">Database write-back</a>
-    </li>
-    <li>
-      <a href="../articles/tree.html">Create a tree spec - version 2</a>
+      <a href="../articles/sql.html">DB Writeback</a>
     </li>
   </ul>
 </li>
 <li>
-  <a href="../news/index.html">Changelog</a>
+  <a href="../news/index.html">News</a>
+</li>
+<li>
+  <a href="../reference/index.html">Reference</a>
 </li>
         
       </ul>
@@ -138,25 +157,42 @@
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-      <h1>Articles</h1>
+    <h1>Prepares parsed model object</h1>
+    
+    <div class="hidden name"><code>as_parsed_model.Rd</code></div>
     </div>
 
-    <div class="section ">
-      <h3>Models</h3>
-      <p class="section-desc"></p>
-
-      <ul>
-        <li><a href="lm.html">Linear Regression</a></li>
-        <li><a href="glm.html">Generalized Linear Regression</a></li>
-        <li><a href="ranger.html">Random Forest, using Ranger</a></li>
-      </ul>
+    <div class="ref-description">
+    
+    <p>Prepares parsed model object</p>
+    
     </div>
+
+    <pre class="usage"><span class='fu'>as_parsed_model</span>(<span class='no'>x</span>)</pre>
+    
+    <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
+    <table class="ref-arguments">
+    <colgroup><col class="name" /><col class="desc" /></colgroup>
+    <tr>
+      <th>x</th>
+      <td><p>A parsed model object</p></td>
+    </tr>
+    </table>
+    
+
+  </div>
+  <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
+    <h2>Contents</h2>
+    <ul class="nav nav-pills nav-stacked">
+      <li><a href="#arguments">Arguments</a></li>
+                </ul>
+
   </div>
 </div>
 
       <footer>
       <div class="tidyverse">
-  <p><code>parsnip</code> is a part of the <strong>tidymodels</strong> ecosystem, a collection of modeling packages designed with common APIs and a shared philosophy.</p>
+  <p><code>tidypredict</code> is a part of the <strong>tidymodels</strong> ecosystem, a collection of modeling packages designed with common APIs and a shared philosophy.</p>
 </div>
 
 <div class="author">

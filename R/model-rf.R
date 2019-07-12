@@ -15,12 +15,12 @@ get_rf_path <- function(row_id, tree, columns, default_op = TRUE) {
     path[2:length(path)],
     ~ {
       rb <- tree[.y, ]
-      if(default_op) {
-        if (rb["left daughter"] == .x) op <-  "less"
+      if (default_op) {
+        if (rb["left daughter"] == .x) op <- "less"
         if (rb["right daughter"] == .x) op <- "more-equal"
       } else {
         if (rb["left daughter"] == .x) op <- "less-equal"
-        if (rb["right daughter"] == .x) op <- "more"    
+        if (rb["right daughter"] == .x) op <- "more"
       }
       list(
         type = "conditional",
@@ -63,12 +63,13 @@ parse_model.randomForest <- function(model) {
   pm$general$type <- "tree"
   pm$general$version <- 2
   pm$trees <- get_rf_trees(model)
-  pm
+  as_parsed_model(pm)
 }
 
 # Fit model -----------------------------------------------
 
 get_rf_case <- function(path, prediction, calc_mode = "") {
+  
   cl <- map(
     path,
     ~ {
@@ -80,7 +81,6 @@ get_rf_case <- function(path, prediction, calc_mode = "") {
     }
   )
   cl <- reduce(cl, function(x, y) expr(!!x & !!y))
-
   if (length(prediction) > 1) {
     pl <- map(
       prediction,

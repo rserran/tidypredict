@@ -1,6 +1,12 @@
-# tidypredict 0.3.0.9001
+# tidypredict 0.4.0
 
 ## New features
+
+- Parses `ranger` classification models.
+
+- Adds method support for `broom`'s `tidy()` function.  Regression models only
+
+- Adds `as_parsed_model()` function. It adds the proper class components to the list.
 
 - Adds initial support for `partykit`'s `ctree()` model
 
@@ -38,7 +44,7 @@
 
 ## Bug Fixes
 
-- tibble 2.0.0 compatability fix (@krlmlr)
+- tibble 2.0.0 compatibility fix (@krlmlr)
 
 # tidypredict 0.2.0
 

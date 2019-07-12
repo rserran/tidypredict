@@ -14,9 +14,9 @@ test_that("Individual prediction difference is never above 1e-12", {
 
 test_that("Intervals return a call", {
   expect_is(
-    tidypredict_interval(glm(am ~ cyl * wt + mpg, data = mtcars, family = "gaussian")), 
+    tidypredict_interval(glm(am ~ cyl * wt + mpg, data = mtcars, family = "gaussian")),
     "call"
-    )
+  )
 })
 
 context("glm-saved")
@@ -25,5 +25,6 @@ test_that("Model can be saved and re-loaded", {
   mp <- tempfile(fileext = ".yml")
   yaml::write_yaml(parse_model(model), mp)
   l <- yaml::read_yaml(mp)
-  expect_silent(tidypredict_fit(l))
+  pm <- as_parsed_model(l)
+  expect_silent(tidypredict_fit(pm))
 })

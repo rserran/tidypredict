@@ -6,13 +6,13 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Authors • tidypredict</title>
+<title>Objects exported from other packages — reexports • tidypredict</title>
 
 <!-- jquery -->
 <script src="https://code.jquery.com/jquery-3.1.0.min.js" integrity="sha384-nrOSfDHtoPMzJHjVTdCopGqIqeYETSXhZDFyniQ8ZHcVy08QesyHcnOUpMpqnmWq" crossorigin="anonymous"></script>
 
 <!-- Bootstrap -->
-<link href="tidyverse.css" rel="stylesheet">
+<link href="../tidyverse.css" rel="stylesheet">
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
 
 <!-- Font Awesome icons -->
@@ -25,18 +25,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sticky-kit/1.1.3/sticky-kit.min.js" integrity="sha256-c4Rlo1ZozqTPE2RLuvbusY3+SU1pQaJC0TjuhygMipw=" crossorigin="anonymous"></script>
 
 <!-- pkgdown -->
-<link href="pkgdown.css" rel="stylesheet">
-<script src="pkgdown.js"></script>
-<link href="tidyverse-2.css" rel="stylesheet">
+<link href="../pkgdown.css" rel="stylesheet">
+<script src="../pkgdown.js"></script>
+<link href="../tidyverse-2.css" rel="stylesheet">
 
 
 
-<meta property="og:title" content="Authors" />
+<meta property="og:title" content="Objects exported from other packages — reexports" />
+
+<meta property="og:description" content="These objects are imported from other packages. Follow the links
+below to see their documentation.
+
+  genericstidy
+" />
 
 <meta property="og:image" content="/logo.png" />
 <meta name="twitter:card" content="summary" />
 
-<meta name="robots" content="noindex">
+
 
 <!-- mathjax -->
 <script src='https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>
@@ -58,7 +64,7 @@
   </head>
 
   <body>
-    <div class="container template-authors">
+    <div class="container template-reference-topic">
       <header>
       <div class="navbar navbar-default navbar-fixed-top" role="navigation">
   <div class="container">
@@ -71,23 +77,44 @@
       </button>
 
       <div class="navbar-brand-container">
-        <a class="navbar-brand" href="index.html">tidypredict</a>
+        <a class="navbar-brand" href="../index.html">tidypredict</a>
         <div class="info">
           <span class="partof">part of <a href="https://github.com/tidymodels">tidymodels</a></span>
-          <span class="version version-danger" data-toggle="tooltip" data-placement="bottom" title="In-development version">0.3.0.9001</span>
+          <span class="version version-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.4.0</span>
         </div>
       </div>
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav navbar-right">
-        <li>
-  <a href="index.html">
-    <span class="fa fa-home fa-lg"></span>
+        <li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Model list
      
+    <span class="caret"></span>
   </a>
-</li>
-<li>
-  <a href="reference/index.html">Reference</a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="../articles/lm.html">Linear Regression - lm()</a>
+    </li>
+    <li>
+      <a href="../articles/glm.html">Generalized Regression - glm()</a>
+    </li>
+    <li>
+      <a href="../articles/ranger.html">Random Forest - Ranger - ranger()</a>
+    </li>
+    <li>
+      <a href="../articles/rf.html">Random Forest - randomForest()</a>
+    </li>
+    <li>
+      <a href="../articles/mars.html">MARS - earth()</a>
+    </li>
+    <li>
+      <a href="../articles/cubist.html">Cubist - cubist()</a>
+    </li>
+    <li>
+      <a href="../articles/xgboost.html">XGboost - xgb.Booster.complete()</a>
+    </li>
+  </ul>
 </li>
 <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
@@ -97,33 +124,29 @@
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="articles/glm.html">Generalized Linear Regression</a>
+      <a href="../articles/save.html">Save/Reload</a>
+    </li>
+    <li class="divider"></li>
+    <li>
+      <a href="../articles/non-r.html">Non-R models</a>
     </li>
     <li>
-      <a href="articles/lm.html">Linear Regression</a>
+      <a href="../articles/regression.html">Regression spec</a>
     </li>
     <li>
-      <a href="articles/ranger.html">Random Forest, using Ranger</a>
+      <a href="../articles/tree.html">Tree model spec</a>
     </li>
+    <li class="divider"></li>
     <li>
-      <a href="articles/regression.html">Create a regression spec - version 2</a>
-    </li>
-    <li>
-      <a href="articles/rf.html">Random Forest</a>
-    </li>
-    <li>
-      <a href="articles/save.html">Save and re-load models</a>
-    </li>
-    <li>
-      <a href="articles/sql.html">Database write-back</a>
-    </li>
-    <li>
-      <a href="articles/tree.html">Create a tree spec - version 2</a>
+      <a href="../articles/sql.html">DB Writeback</a>
     </li>
   </ul>
 </li>
 <li>
-  <a href="news/index.html">Changelog</a>
+  <a href="../news/index.html">News</a>
+</li>
+<li>
+  <a href="../reference/index.html">Reference</a>
 </li>
         
       </ul>
@@ -136,26 +159,37 @@
       </header>
 
 <div class="row">
-  <div class="contents col-md-9">
+  <div class="col-md-9 contents">
     <div class="page-header">
-      <h1>Authors</h1>
+    <h1>Objects exported from other packages</h1>
+    
+    <div class="hidden name"><code>reexports.Rd</code></div>
     </div>
 
-    <ul class="list-unstyled">
-      <li>
-        <p><strong>Edgar Ruiz</strong>. Author, maintainer. 
-        </p>
-      </li>
-    </ul>
+    <div class="ref-description">
+    
+    <p>These objects are imported from other packages. Follow the links
+below to see their documentation.</p>
+<dl class='dl-horizontal'>
+  <dt>generics</dt><dd><p><code><a href='https://www.rdocumentation.org/packages/generics/topics/tidy'>tidy</a></code></p></dd>
+</dl>
+    
+    </div>
+
+        
 
   </div>
+  <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
+    <h2>Contents</h2>
+    <ul class="nav nav-pills nav-stacked">
+                </ul>
 
+  </div>
 </div>
-
 
       <footer>
       <div class="tidyverse">
-  <p><code>parsnip</code> is a part of the <strong>tidymodels</strong> ecosystem, a collection of modeling packages designed with common APIs and a shared philosophy.</p>
+  <p><code>tidypredict</code> is a part of the <strong>tidymodels</strong> ecosystem, a collection of modeling packages designed with common APIs and a shared philosophy.</p>
 </div>
 
 <div class="author">
