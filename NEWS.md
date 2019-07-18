@@ -1,3 +1,11 @@
+# tidypredict 0.4.2
+
+- Simplifies tests that verify `ranger` 
+
+- Adds fit method for parsed `xgboost` models
+
+- Sets conditional requirement for `xgboost`, for test and vignette 
+
 # tidypredict 0.4.0
 
 ## New features
