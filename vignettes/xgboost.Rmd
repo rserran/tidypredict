@@ -2,7 +2,7 @@
 title: "XGBoost models"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{xgboost}
+  %\VignetteIndexEntry{XGBoost models}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -78,7 +78,7 @@ model <- xgboost::xgb.train(
 ```{r}
 library(parsnip)
 
-p_model <- boost_tree() %>%
+p_model <- boost_tree(mode = "regression") %>%
   set_engine("xgboost") %>%
   fit(am ~ ., data = mtcars)
 ```

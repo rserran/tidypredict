@@ -8,11 +8,11 @@
 #' @param df A data frame that contains all of the needed fields to run the prediction.
 #' It defaults to the "model" data frame object inside the model object.
 #' @param threshold The number that a given result difference, between predict() and
-#' tidypredict_to_column() should not exceed.  For continuous predictions, the default
-#' value is 0.000000000001 (1e-12), for categorical predictions, the default value is
+#' tidypredict_to_column() should not exceed. For continuous predictions, the default
+#' value is 0.000000000001 (1e-12), and for categorical predictions, the default value is
 #' 0.
 #' @param include_intervals Switch to indicate if the prediction intervals should be
-#' included in the test.  It defaults to FALSE.
+#' included in the test. It defaults to FALSE.
 #' @param max_rows The number of rows in the object passed in the df argument. Highly
 #' recommended for large data sets.
 #' @param xg_df A xgb.DMatrix object, required only for XGBoost models. It defaults to
@@ -26,12 +26,35 @@
 #' @export
 tidypredict_test <- function(model, df = model$model, threshold = 0.000000000001,
                              include_intervals = FALSE, max_rows = NULL, xg_df = NULL) {
-  if (is.null(df)) stop("Test data is missing, please pass one via the df argument")
   UseMethod("tidypredict_test")
 }
 
 #' @export
+tidypredict_test.party <- function(model, df = model$data, threshold = 0.000000000001,
+                                     include_intervals = FALSE, max_rows = NULL, xg_df = NULL) {
+  tidypredict_test_default(
+    model = model, 
+    df = df,
+    threshold = threshold,
+    include_intervals = include_intervals,
+    max_rows = max_rows,
+    xg_df = xg_df
+  )
+}
+
+#' @export
 tidypredict_test.default <- function(model, df = model$model, threshold = 0.000000000001,
+                                     include_intervals = FALSE, max_rows = NULL, xg_df = NULL) {
+  tidypredict_test_default(
+    model = model, 
+    df = df,
+    threshold = threshold,
+    include_intervals = include_intervals,
+    max_rows = max_rows,
+    xg_df = xg_df
+  )
+}
+tidypredict_test_default <- function(model, df = model$model, threshold = 0.000000000001,
                                      include_intervals = FALSE, max_rows = NULL, xg_df = NULL) {
   offset <- model$call$offset
   ismodels <- paste0(colnames(model$model), collapse = " ") == paste0(colnames(df), collapse = " ")
@@ -45,12 +68,12 @@ tidypredict_test.default <- function(model, df = model$model, threshold = 0.0000
 
   if (is.numeric(max_rows)) df <- head(df, max_rows)
 
-  base <- predict(model, df, interval = interval, type = "response")
+  preds <- predict(model, df, interval = interval, type = "response")
 
   if (!include_intervals) {
-    base <- data.frame(fit = base, row.names = NULL)
+    base <- data.frame(fit = as.vector(preds), row.names = NULL)
   } else {
-    base <- as.data.frame(base)
+    base <- as.data.frame(preds)
   }
 
   te <- tidypredict_to_column(
@@ -67,7 +90,7 @@ tidypredict_test.default <- function(model, df = model$model, threshold = 0.0000
 
   raw_results <- cbind(base, te)
   raw_results$fit_diff <- raw_results$fit - raw_results$fit_te
-  raw_results$fit_threshold <- raw_results$fit_diff > threshold
+  raw_results$fit_threshold <- abs(raw_results$fit_diff) > threshold
 
   if (include_intervals) {
     raw_results$lwr_diff <- abs(raw_results$lwr - raw_results$lwr_te)

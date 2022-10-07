@@ -6,25 +6,21 @@
 \alias{tidypredict-package}
 \title{tidypredict: Run Predictions Inside the Database}
 \description{
-\if{html}{\figure{logo.png}{options: align='right'}}
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-It parses a fitted 'R' model object, and returns a formula
-    in 'Tidy Eval' code that calculates the predictions.
-    It works with several databases back-ends because it leverages 'dplyr'
-    and 'dbplyr' for the final 'SQL' translation of the algorithm. It currently
-    supports lm(), glm(), randomForest(), ranger(), earth(), xgb.Booster.complete(),
-    cubist(), and ctree() models.
+It parses a fitted 'R' model object, and returns a formula in 'Tidy Eval' code that calculates the predictions. It works with several databases back-ends because it leverages 'dplyr' and 'dbplyr' for the final 'SQL' translation of the algorithm. It currently supports lm(), glm(), randomForest(), ranger(), earth(), xgb.Booster.complete(), cubist(), and ctree() models.
 }
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://tidymodels.github.io/tidypredict}
+  \item \url{https://tidypredict.tidymodels.org}
+  \item \url{https://github.com/tidymodels/tidypredict}
   \item Report bugs at \url{https://github.com/tidymodels/tidypredict/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: Edgar Ruiz \email{edgar@rstudio.com}
+\strong{Maintainer}: Max Kuhn \email{max@rstudio.com}
 
 }
 \keyword{internal}

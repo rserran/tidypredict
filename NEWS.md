@@ -1,3 +1,39 @@
+# tidypredict (development version)
+
+# tidypredict 0.4.9
+
+- Fixes issue handling GLM Binomial earth models (#97)
+
+- Adds capability to handle single simple Cubist models (#57)
+
+- Fixed parenthesis issue in the creation of the interval formula (#76)
+
+- Fixed bug in SQL query generation for XGBoost models with objective `binary:logistic`.
+
+- Re-licensed package from GPL-3 to MIT. See [consent from copyright holders here](https://github.com/tidymodels/tidypredict/issues/95).
+
+# tidypredict 0.4.8
+
+- CRAN submission for a broken test case. 
+
+# tidypredict 0.4.7
+
+- Change to with with version 5.1.2 and above of the `earth` package. As a result, `tidypredict` will only parse objects created by this and later versions of `earth`. 
+
+# tidypredict 0.4.6
+
+- Small release for `xgboost` changes. 
+
+# tidypredict 0.4.5
+
+- Switches maintainer to Max Kuhn
+
+# tidypredict 0.4.3
+
+- Adds support for categorical predictors in `partykit`
+
+- Fixes `parsnip` tests to meet standards of new CRAN version
+
 # tidypredict 0.4.2
 
 - Simplifies tests that verify `ranger` 

@@ -1,4 +1,4 @@
-context("test-tester")
+skip_if_not_installed("randomForest")
 
 test_that("Tester returns warning", {
   t <- tidypredict_test(
@@ -9,7 +9,7 @@ test_that("Tester returns warning", {
 })
 
 test_that("Intervals returns list", {
-  expect_is(
+  expect_s3_class(
     tidypredict_test(lm(mpg ~ ., data = mtcars), include_intervals = TRUE),
     "tidypredict_test"
   )
@@ -23,12 +23,5 @@ test_that("Error is returned for tree based models", {
   expect_error(
     tidypredict_test(ranger::ranger(Species ~ ., data = iris), df = iris),
     "tidypredict_test does not support"
-  )
-})
-
-test_that("Expect error message", {
-  expect_error(
-    tidypredict_test(earth::earth(am ~ ., data = mtcars)),
-    "Test data is missing"
   )
 })

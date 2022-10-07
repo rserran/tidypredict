@@ -2,10 +2,15 @@
 % Please edit documentation in R/predict-column.R
 \name{tidypredict_to_column}
 \alias{tidypredict_to_column}
-\title{Adds the prediction columns to a piped command set}
+\title{Adds the prediction columns to a piped command set.}
 \usage{
-tidypredict_to_column(df, model, add_interval = FALSE, interval = 0.95,
-  vars = c("fit", "upper", "lower"))
+tidypredict_to_column(
+  df,
+  model,
+  add_interval = FALSE,
+  interval = 0.95,
+  vars = c("fit", "upper", "lower")
+)
 }
 \arguments{
 \item{df}{A data.frame or tibble}
@@ -15,13 +20,13 @@ tidypredict_to_column(df, model, add_interval = FALSE, interval = 0.95,
 \item{add_interval}{Switch that indicates if the prediction interval columns should be added. Defaults
 to FALSE}
 
-\item{interval}{The prediction interval, defaults to 0.95. It is ignored if add_interval is set to
+\item{interval}{The prediction interval, defaults to 0.95. Ignored if add_interval is set to
 FALSE}
 
-\item{vars}{The name of the variables that this function will produce. It defaults to "fit", "upper", and "lower".}
+\item{vars}{The name of the variables that this function will produce. Defaults to "fit", "upper", and "lower".}
 }
 \description{
-Adds a new column with the results form tidypredict_fit() to a piped command set.
-If add_interval is set to TRUE, then it will add two additional columns, one
+Adds a new column with the results from tidypredict_fit() to a piped command set.
+If add_interval is set to TRUE, it will add two additional columns- one
 for the lower and another for the upper prediction interval bounds.
 }
