@@ -52,7 +52,7 @@
         <a class="navbar-brand" href="../index.html">tidypredict</a>
         <div class="info hidden-xs hidden-sm">
           <span class="partof">part of <a href="https://tidymodels.org" class="external-link">tidymodels</a></span>
-          <span class="version version-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.9.9000</span>
+          <span class="version version-default" data-toggle="tooltip" data-placement="bottom" title="">0.5</span>
         </div>
       </div>
     </div>
@@ -151,11 +151,21 @@
 
     
     
-<p>A model that is trained in any language are able to integrate with <code>tidypredict</code>, and thus with <code>broom</code>. The requirement is that the model in that language is exported using the parse model spec. The easiest file format would be YAML.</p>
+<p>A model that is trained in any language are able to integrate with
+<code>tidypredict</code>, and thus with <code>broom</code>. The
+requirement is that the model in that language is exported using the
+parse model spec. The easiest file format would be YAML.</p>
 <div class="section level2">
 <h2 id="python-example">python example<a class="anchor" aria-label="anchor" href="#python-example"></a>
 </h2>
-<p>A model that was fitted using <code>sklearn</code>’s <code>linear_model</code>. The model is based on diabetes data. Ten baseline variables, age, sex, body mass index, average blood pressure, and six blood serum measurements were obtained for each of n = 442 diabetes patients, as well as the response of interest, a quantitative measure of disease progression one year after baseline. The model’s results were converted to YAML by the same python script, I copied and pasted the top part here:</p>
+<p>A model that was fitted using <code>sklearn</code>’s
+<code>linear_model</code>. The model is based on diabetes data. Ten
+baseline variables, age, sex, body mass index, average blood pressure,
+and six blood serum measurements were obtained for each of n = 442
+diabetes patients, as well as the response of interest, a quantitative
+measure of disease progression one year after baseline. The model’s
+results were converted to YAML by the same python script, I copied and
+pasted the top part here:</p>
 <pre><code><span><span class="va">general</span><span class="op">:</span></span>
 <span>  <span class="va">is_glm</span><span class="op">:</span> <span class="fl">0</span></span>
 <span>  <span class="va">model</span><span class="op">:</span> <span class="va">lm</span></span>
@@ -174,7 +184,11 @@
 <div class="section level2">
 <h2 id="read-in-r">Read in R<a class="anchor" aria-label="anchor" href="#read-in-r"></a>
 </h2>
-<p>The YAML data can be read in R by using the <code>yaml</code> package. In this example, we have copy-pasted most of the models inside a variable called <code>sklearn_model</code>. Because <code>yaml</code> requires local YAML variables to be split by line, we use <code><a href="https://rdrr.io/r/base/strsplit.html" class="external-link">strsplit()</a></code>.</p>
+<p>The YAML data can be read in R by using the <code>yaml</code>
+package. In this example, we have copy-pasted most of the models inside
+a variable called <code>sklearn_model</code>. Because <code>yaml</code>
+requires local YAML variables to be split by line, we use
+<code><a href="https://rdrr.io/r/base/strsplit.html" class="external-link">strsplit()</a></code>.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/vubiostat/r-yaml/" class="external-link">yaml</a></span><span class="op">)</span></span>
 <span></span>
@@ -223,7 +237,8 @@
 <span><span class="st">  is_intercept: 0</span></span>
 <span><span class="st">  label: s1</span></span>
 <span><span class="st">"</span>, split <span class="op">=</span> <span class="st">"\n"</span><span class="op">)</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span></code></pre></div>
-<p>Now the model is converted to an R <code>list</code> using <code>yaml.load</code>.</p>
+<p>Now the model is converted to an R <code>list</code> using
+<code>yaml.load</code>.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sklearn_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/yaml/man/yaml.load.html" class="external-link">yaml.load</a></span><span class="op">(</span><span class="va">sklearn_model</span><span class="op">)</span></span>
 <span></span>
@@ -248,7 +263,9 @@
 <h2 id="tidypredict">
 <code>tidypredict</code><a class="anchor" aria-label="anchor" href="#tidypredict"></a>
 </h2>
-<p>The <code>list</code> object needs to be recognized as a <code>tidypredict</code> parsed model. To do that, we use <code><a href="../reference/as_parsed_model.html">as_parsed_model()</a></code></p>
+<p>The <code>list</code> object needs to be recognized as a
+<code>tidypredict</code> parsed model. To do that, we use
+<code><a href="../reference/as_parsed_model.html">as_parsed_model()</a></code></p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tidypredict.tidymodels.org">tidypredict</a></span><span class="op">)</span></span>
 <span></span>
@@ -256,7 +273,9 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">class</a></span><span class="op">(</span><span class="va">spm</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "parsed_model"  "pm_regression" "list"</span></span></code></pre></div>
-<p>The <code>spm</code> variable now works just as any parsed model inside R. Use <code><a href="../reference/tidypredict_fit.html">tidypredict_fit()</a></code> to view the resulting formula.</p>
+<p>The <code>spm</code> variable now works just as any parsed model
+inside R. Use <code><a href="../reference/tidypredict_fit.html">tidypredict_fit()</a></code> to view the resulting
+formula.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/tidypredict_fit.html">tidypredict_fit</a></span><span class="op">(</span><span class="va">spm</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 152.764306916334 + (age * 0.303499549066043) + (sex * -237.639315333534) + </span></span>
@@ -271,7 +290,10 @@
 <h2 id="broom">
 <code>broom</code><a class="anchor" aria-label="anchor" href="#broom"></a>
 </h2>
-<p>Now that we have a <code>parsed_model</code> object, it is possible to use <code>broom</code>’s <code><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy()</a></code> function. This means that we are able to integrate a totally external model, with <code>broom</code>.</p>
+<p>Now that we have a <code>parsed_model</code> object, it is possible
+to use <code>broom</code>’s <code><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy()</a></code> function. This means
+that we are able to integrate a totally external model, with
+<code>broom</code>.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">spm</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 6 × 2</span></span></span>

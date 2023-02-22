@@ -52,7 +52,7 @@
         <a class="navbar-brand" href="../index.html">tidypredict</a>
         <div class="info hidden-xs hidden-sm">
           <span class="partof">part of <a href="https://tidymodels.org" class="external-link">tidymodels</a></span>
-          <span class="version version-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.9.9000</span>
+          <span class="version version-default" data-toggle="tooltip" data-placement="bottom" title="">0.5</span>
         </div>
       </div>
     </div>
@@ -159,7 +159,8 @@
 <tbody>
 <tr class="odd">
 <td>
-<code><a href="../reference/tidypredict_fit.html">tidypredict_fit()</a></code>, <code><a href="../reference/tidypredict_sql.html">tidypredict_sql()</a></code>, <code><a href="../reference/parse_model.html">parse_model()</a></code>
+<code><a href="../reference/tidypredict_fit.html">tidypredict_fit()</a></code>, <code><a href="../reference/tidypredict_sql.html">tidypredict_sql()</a></code>,
+<code><a href="../reference/parse_model.html">parse_model()</a></code>
 </td>
 <td>✔</td>
 </tr>
@@ -173,7 +174,8 @@
 </tr>
 <tr class="even">
 <td>
-<code><a href="../reference/tidypredict_interval.html">tidypredict_interval()</a></code>, <code><a href="../reference/tidypredict_sql_interval.html">tidypredict_sql_interval()</a></code>
+<code><a href="../reference/tidypredict_interval.html">tidypredict_interval()</a></code>,
+<code><a href="../reference/tidypredict_sql_interval.html">tidypredict_sql_interval()</a></code>
 </td>
 <td>✗</td>
 </tr>
@@ -268,7 +270,8 @@
 <span><span class="co">#&gt; $ fit     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> 27.50665, 22.71805, 34.78128, 33.19372, 31.93653, 25.03739, 21…</span></span></code></pre></div>
 </li>
 <li>
-<p>Confirm that <code>tidypredict</code> results match to the model’s <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> results</p>
+<p>Confirm that <code>tidypredict</code> results match to the
+model’s <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> results</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/tidypredict_test.html">tidypredict_test</a></span><span class="op">(</span><span class="va">model</span>, <span class="va">BostonHousing</span><span class="op">)</span></span>
 <span><span class="co">#&gt; tidypredict test results</span></span>
