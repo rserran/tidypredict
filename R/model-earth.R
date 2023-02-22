@@ -17,7 +17,7 @@ parse_model.earth <- function(model) {
   
   pm <- list()
   pm$general$model <- "earth"
-  pm$general$type <- "tree"
+  pm$general$type <- "regression"
   pm$general$version <- 2
   pm$general$is_glm <- 0
   if (is_glm) {
@@ -62,11 +62,16 @@ mars_terms <- function(mod, is_glm) {
     tidyr::pivot_longer(cols = c(-column),
                         values_to = "value",
                         names_to = "term") %>% 
-    dplyr::mutate(level = 
-                    case_when(
-                      value == 1 ~ stringr::str_remove(term, paste0("^", column)),
-                      TRUE ~ NA_character_)
-    ) %>% 
+    purrr::transpose() %>% 
+    purrr::map(~ {
+      if(.x$value == 1) {
+        .x$level <- gsub(.x$column, "", .x$term)  
+      } else {
+        .x$level <- NA
+      }
+      .x
+    }) %>% 
+    dplyr::bind_rows() %>% 
     dplyr::filter(value == 1) %>% 
     dplyr::select(-value)
   
