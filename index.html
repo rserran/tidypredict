@@ -154,7 +154,7 @@
 <code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">mpg</span> <span class="op">~</span> <span class="va">wt</span> <span class="op">+</span> <span class="va">cyl</span>, data <span class="op">=</span> <span class="va">mtcars</span><span class="op">)</span></span></code></pre></div>
 <p><code>tidypredict</code> can return a SQL statement that is ready to run inside the database. Because it uses <code>dplyr</code>’s database interface, it works with several databases back-ends, such as MS SQL:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/tidypredict_sql.html">tidypredict_sql</a></span><span class="op">(</span><span class="va">model</span>, <span class="fu">dbplyr</span><span class="fu">::</span><span class="fu"><a href="https://dbplyr.tidyverse.org/reference/simulate_dbi.html" class="external-link">simulate_mssql</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="reference/tidypredict_sql.html">tidypredict_sql</a></span><span class="op">(</span><span class="va">model</span>, <span class="fu">dbplyr</span><span class="fu">::</span><span class="fu"><a href="https://dbplyr.tidyverse.org/reference/backend-mssql.html" class="external-link">simulate_mssql</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="do">## &lt;SQL&gt; (39.6862614802529 + (`wt` * -3.19097213898375)) + (`cyl` * -1.5077949682598)</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
@@ -260,7 +260,7 @@
 </li>
 <li>Random Forest models - <code><a href="https://rdrr.io/pkg/randomForest/man/randomForest.html" class="external-link">randomForest::randomForest()</a></code>
 </li>
-<li>Random Forest models, via <code>ranger</code> - <code><a href="https://rdrr.io/pkg/ranger/man/ranger.html" class="external-link">ranger::ranger()</a></code>
+<li>Random Forest models, via <code>ranger</code> - <code><a href="http://imbs-hl.github.io/ranger/reference/ranger.html" class="external-link">ranger::ranger()</a></code>
 </li>
 <li>MARS models - <code><a href="https://rdrr.io/pkg/earth/man/earth.html" class="external-link">earth::earth()</a></code>
 </li>
@@ -282,7 +282,7 @@
 <li>
 <code><a href="https://rdrr.io/pkg/randomForest/man/randomForest.html" class="external-link">randomForest::randomForest()</a></code> - <code>parsnip</code>: <code>rand_forest()</code> with <em>“randomForest”</em> as the engine.</li>
 <li>
-<code><a href="https://rdrr.io/pkg/ranger/man/ranger.html" class="external-link">ranger::ranger()</a></code> - <code>parsnip</code>: <code>rand_forest()</code> with <em>“ranger”</em> as the engine.</li>
+<code><a href="http://imbs-hl.github.io/ranger/reference/ranger.html" class="external-link">ranger::ranger()</a></code> - <code>parsnip</code>: <code>rand_forest()</code> with <em>“ranger”</em> as the engine.</li>
 <li>
 <code><a href="https://rdrr.io/pkg/earth/man/earth.html" class="external-link">earth::earth()</a></code> - <code>parsnip</code>: <code>mars()</code> with <em>“earth”</em> as the engine.</li>
 </ul>
