@@ -1,5 +1,11 @@
 # tidypredict (development version)
 
+- Speed up `tidypredict_fit()` for partykit and ranger packages. (#125)
+
+# tidypredict 0.5.1
+
+- Exported a number of internal functions to be used in {orbital} package
+
 # tidypredict 0.5
 
 - Changes maintainer to Edgar Ruiz
