@@ -22,3 +22,6 @@ config.toml
 ^CODE_OF_CONDUCT\.md$
 ^LICENSE\.md$
 ^CRAN-SUBMISSION$
+^[.]?air[.]toml$
+^\.vscode$
+^\.claude$

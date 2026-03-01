@@ -11,59 +11,47 @@ build_fit_formula <- function(parsedmodel) {
     parsedmodel$terms,
     ~ {
       if (.x$is_intercept == 0) {
-        cols <- map(
-          .x$fields,
-          ~ {
-            f <- NULL
-            if (.x$type == "ordinary") {
-              f <- expr(!!sym(.x$col))
-            }
-            if (.x$type == "conditional") {
-              f <- expr(ifelse(!!sym(.x$col) == !!.x$val, 1, 0))
-            }
-            if (.x$type == "operation") {
-              if (.x$op == "morethan") {
-                f <- expr(ifelse(!!sym(.x$col) > !!.x$val, !!sym(.x$col) - !!.x$val, 0))
-              }
-              if (.x$op == "lessthan") {
-                f <- expr(ifelse(!!sym(.x$col) < !!.x$val, !!.x$val - !!sym(.x$col), 0))
-              }
-            }
-            f
-          }
-        )
-        cols <- reduce(cols, function(l, r) expr(!!l * !!r))
+        cols <- map(.x$fields, lm_constructor)
+        cols <- reduce_multiplication(cols)
         expr((!!cols * !!.x$coef))
       } else {
-        expr(!!.x$coef)
+        if (.x$coef == 0) {
+          NULL
+        } else {
+          expr(!!.x$coef)
+        }
       }
     }
   )
-  f <- reduce(parsed_f, function(l, r) expr(!!l + !!r))
+  parsed_f <- purrr::discard(parsed_f, is.null)
+
+  f <- reduce_addition(parsed_f)
 
   if (!is.null(parsedmodel$general$offset)) {
-    f <- expr(!!f + !!parsedmodel$general$offset)
+    f <- expr_addition(f, parsedmodel$general$offset)
   }
 
   if (parsedmodel$general$is_glm == 1) {
     link <- parsedmodel$general$link
-    assigned <- 0
-    if (link == "identity") {
-      assigned <- 1
-    }
-    if (link == "logit") {
-      assigned <- 1
-      f <- expr(1 - 1 / (1 + exp(!!f)))
-    }
-    if (link == "log") {
-      assigned <- 1
-      f <- expr(exp(!!f))
-    }
-    if (assigned == 0) {
-      cli::cli_abort("Combination of family and link are not supported")
-    }
+    f <- apply_inverse_link(f, link)
   }
   f
+}
+
+apply_inverse_link <- function(f, link) {
+  switch(
+    link,
+    "identity" = f,
+    "logit" = expr(1 - 1 / (1 + exp(!!f))),
+    "log" = expr(exp(!!f)),
+    "inverse" = expr(1 / (!!f)),
+    "1/mu^2" = expr(1 / sqrt(!!f)),
+    # Bowling et al. approximation to normal CDF (max error ~0.014%)
+    "probit" = expr(1 / (1 + exp(-0.07056 * (!!f)^3 - 1.5976 * (!!f)))),
+    "cloglog" = expr(1 - exp(-exp(!!f))),
+    "sqrt" = expr((!!f)^2),
+    cli::cli_abort("Link {.val {link}} is not supported.")
+  )
 }
 
 # Parse model --------------------------------------
@@ -71,14 +59,31 @@ build_fit_formula <- function(parsedmodel) {
 #' @export
 parse_model.lm <- function(model) parse_model_lm(model)
 
-parse_model_lm <- function(model) {
+parse_model_lm <- function(model, call = rlang::caller_env()) {
   acceptable_formula(model)
 
   coefs <- as.numeric(model$coefficients)
   labels <- names(model$coefficients)
   vars <- names(attr(model$terms, "dataClasses"))
   qr <- NULL
-  if (!is.null(model$qr)) qr <- qr.solve(qr.R(model$qr))
+  if (!is.null(model$qr)) {
+    qr <- tryCatch(
+      qr.solve(qr.R(model$qr)),
+      error = function(cnd) {
+        if (grepl("singular matrix", cnd$message)) {
+          cli::cli_abort(
+            c(
+              x = "Unable to calculate inverse of QR decomposition.",
+              i = "This is likely happening because the predictors contain a 
+              linear combination of predictors. Please remove and try again."
+            ),
+            call = call
+          )
+        }
+        stop(cnd)
+      }
+    )
+  }
 
   pm <- list()
   pm$general$model <- class(model)[[1]]
@@ -127,7 +132,11 @@ parse_label_lm <- function(label, vars) {
       col = items[i]
     )
     cat_match <- map_lgl(vars, ~ .x == substr(items[i], 1, nchar(.x)))
-    if (any(cat_match) && any(vars[cat_match] != items[i]) && !(items[i] %in% vars)) {
+    if (
+      any(cat_match) &&
+        any(vars[cat_match] != items[i]) &&
+        !(items[i] %in% vars)
+    ) {
       cat_match_vars <- vars[cat_match]
       sole_cat_match <- cat_match_vars[rank(-nchar(cat_match_vars))][[1]]
       item <- list(
@@ -165,38 +174,18 @@ get_qr_lm <- function(qr_name, parsedmodel) {
       cqr <- .x$qr[qr_name][[1]]
 
       if (.x$is_intercept == 0) {
-        cols <- map(
-          .x$fields,
-          ~ {
-            f <- NULL
-            if (.x$type == "ordinary") {
-              f <- expr(!!sym(.x$col))
-            }
-            if (.x$type == "conditional") {
-              f <- expr(ifelse(!!sym(.x$col) == !!.x$val, 1, 0))
-            }
-            if (.x$type == "operation") {
-              if (.x$op == "morethan") {
-                f <- expr(ifelse(!!sym(.x$col) > !!.x$val, !!sym(.x$col) - !!.x$val, 0))
-              }
-              if (.x$op == "lessthan") {
-                f <- expr(ifelse(!!sym(.x$col) < !!.x$val, !!.x$val - !!sym(.x$col), 0))
-              }
-            }
-            f
-          }
-        )
-        cols <- reduce(cols, function(l, r) expr(!!l * !!r))
-        if (cqr != 0) expr(!!cols * !!cqr)
+        cols <- map(.x$fields, lm_constructor)
+        cols <- reduce_multiplication(cols)
+        if (cqr != 0) {
+          expr_multiplication(cols, cqr)
+        }
       } else {
         expr(!!cqr)
       }
     }
   )
-  f <- reduce(
-    q[!map_lgl(q, is.null)],
-    function(x, y) expr(!!x + !!y)
-  )
+  f <- reduce_addition(q[!map_lgl(q, is.null)])
+
   expr(((!!f)) * ((!!f)) * !!parsedmodel$general$sigma2)
 }
 
@@ -206,7 +195,36 @@ te_interval_lm <- function(parsedmodel, interval = 0.95) {
     qr_names,
     ~ get_qr_lm(.x, parsedmodel)
   )
-  qrs <- reduce(qrs_map, function(x, y) expr(!!x + (!!y)))
+  qrs <- reduce_addition(qrs_map)
   tfrac <- qt(1 - (1 - 0.95) / 2, parsedmodel$general$residual)
   expr(!!tfrac * sqrt((!!qrs) + (!!parsedmodel$general$sigma2)))
+}
+
+# Helpers -------------------------------------------------
+
+lm_constructor <- function(x) {
+  f <- NULL
+  if (x$type == "ordinary") {
+    f <- expr(!!as.name(x$col))
+  }
+  if (x$type == "conditional") {
+    f <- expr(ifelse(!!as.name(x$col) == !!x$val, 1, 0))
+  }
+  if (x$type == "operation") {
+    if (x$op == "morethan") {
+      f <- expr(ifelse(
+        !!as.name(x$col) > !!x$val,
+        !!as.name(x$col) - !!x$val,
+        0
+      ))
+    }
+    if (x$op == "lessthan") {
+      f <- expr(ifelse(
+        !!as.name(x$col) < !!x$val,
+        !!x$val - !!as.name(x$col),
+        0
+      ))
+    }
+  }
+  f
 }

@@ -1,6 +1,104 @@
 # tidypredict (development version)
 
+# tidypredict 1.1.0
+
+## New Model Supports
+
+- Added support for rpart decision tree models (`rpart`). (#226)
+
+- Added support for CatBoost models (`catboost.Model`). (#179, #187, #188)
+  - Objectives: RMSE, MAE, Quantile, MAPE, Poisson, Huber, LogCosh, Expectile, Tweedie, Logloss, CrossEntropy, MultiClass, and MultiClassOneVsAll.
+  - Tree types: oblivious (default `SymmetricTree`) and non-oblivious (`Depthwise` or `Lossguide` grow policy).
+  - Categorical features are handled automatically for parsnip/bonsai models; for raw CatBoost models use `set_catboost_categories()`.
+
+- Added support for LightGBM models (`lgb.Booster`). (#177, #186)
+  - Objectives: regression, binary classification, and multiclass classification.
+  - Supports categorical features.
+  - Supports linear trees (`linear_tree = TRUE`), which fit a linear model at each leaf instead of a constant.
+
+## Improvements
+
+- Tree models (rpart, partykit, ranger, randomForest, xgboost, lightgbm, catboost) now generate nested `case_when()` expressions that mirror the tree structure, instead of flat expressions with all leaf conditions at the same level. This produces more efficient SQL and R code because conditions are evaluated hierarchically. (#227)
+
+- `parse_model()` now documents the parsed model version system (v1/v2/v3) and model type classes in its help page. (#227)
+
+- `earth()` models now support additional GLM families and link functions: Gamma, inverse.gaussian, probit, and cloglog. (#194, #195)
+
+- `glm()` models now support additional families and link functions: Gamma family with inverse link, inverse.gaussian family with 1/mu^2 link, probit link, cloglog link, and sqrt link. (#203, #204, #205, #206, #207)
+
+- `glmnet()` models now support `Gamma` family and Cox proportional hazards (`family = "cox"`) models. (#200, #201)
+
+- xgboost support now includes additional objectives: `binary:hinge`, `reg:absoluteerror`, `reg:gamma`, `reg:pseudohubererror`, and `reg:squaredlogerror`. (#184)
+
+- Added a vignette on floating-point precision issues with tree-based models. (#231)
+
+## Bug Fixes
+
+- `tidypredict_fit()` now correctly handles xgboost models with stump trees (single leaf, no splits). (#182)
+
+- `tidypredict_fit()` now correctly handles xgboost DART booster models with `rate_drop > 0`. DART uses tree weight normalization during training, and these weights are now properly applied to each tree's predictions. (#183)
+
+- `tidypredict_fit()` now correctly incorporates `base_score` for xgboost models with `count:poisson` and `reg:tweedie` objectives. Previously, predictions were incorrect when `base_score` was not the default value. (#184)
+
+- `tidypredict_fit()` now correctly averages tree predictions for LightGBM models with `boosting="rf"` instead of summing them. (#185)
+
+- `tidypredict_fit()` now uses the correct split operator (`<=` instead of `<`) for ranger models. Previously, predictions were incorrect when data values exactly matched split values. (#189)
+
+- `tidypredict_fit()` now correctly averages tree predictions for ranger models instead of summing them. Previously, predictions were `num.trees` times too large. (#190)
+
+- `tidypredict_fit()` now throws a clear error for ranger and randomForest classification models, which are not supported. (#191, #193)
+
+- `tidypredict_fit()` now uses the correct split operator (`<=` instead of `<`) for randomForest models. (#192)
+
+- `tidypredict_fit()` now correctly handles partykit stump trees (models with no splits). (#196)
+
+- `tidypredict_fit()` now works with `glmnet()` models that use family function syntax (e.g., `family = gaussian()`) instead of string syntax (e.g., `family = "gaussian"`). (#197)
+
+- `tidypredict_fit()` now works with models that use family function syntax (e.g., `family = gaussian()`) instead of string syntax (e.g., `family = "gaussian"`). (#202)
+
+# tidypredict 1.0.1
+
+## Bug Fixes
+
+- Fixed bug where `base_score` wasn't extracted correctly xgboost for version 3 or higher. (#173)
+
+# tidypredict 1.0.0
+
+## Breaking Changes
+
+- Random forest implementations (ranger and randomForest) will now produce a single formula instead of a list of expressions. (#84)
+
+## New Model Supports
+
+- Added support for glmnet models. (#165)
+
+## Improvements
+
+- xgboost models with objectives `"reg:tweedie"` and `"count:poisson"` are now supported. (#72, @SimonCoulombe)
+
+- tree based models now uses `.default` argument in produced `case_when()` code when applicable. (#153)
+
 - Speed up `tidypredict_fit()` for partykit and ranger packages. (#125)
+
+- Speed up `tidypredict_fit()` for xgboost models. (#130)
+
+- randomForest models now support regression outcomes. (#77)
+
+- An informative error will now be thrown if a lm model cannot be processed due to having linear combinations of predictors. (#124)
+
+- linear models such as `lm()` and `glm()` now work with interactions created with `*` and `:`. (#74) 
+
+- Cubist rules will return simplified rules whenever possible to avoid multiplying by 0 and 1. (#152)
+
+- Make work with xgboost version > 2.0.0.0. (#169)
+
+## Bug Fixes
+
+- Fixed a bug where the intercept was added incorrectly to the result for cubist models. (#58)
+
+- Fixed bug where tidypredict would error on Cubist models without conditions. (#127)
+
+- Fixed bug where Cubst models incorrectly combined rules and committees. (#134)
 
 # tidypredict 0.5.1
 

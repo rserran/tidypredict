@@ -22,7 +22,7 @@ library(dplyr)
 |---------------------------------------------------------------|-----|
 |`tidypredict_fit()`, `tidypredict_sql()`, `parse_model()`      |  ✔  |
 |`tidypredict_to_column()`                                      |  ✔  |
-|`tidypredict_test()`                                           |  ✔  |
+|`tidypredict_test()`                                           |  ✗  |
 |`tidypredict_interval()`, `tidypredict_sql_interval()`         |  ✗  |
 |`parsnip`                                                      |  ✗  |
 
@@ -33,7 +33,11 @@ library(dplyr)
 library(Cubist)
 data("BostonHousing", package = "mlbench")
 
-model <- Cubist::cubist(x = BostonHousing[, -14], y = BostonHousing$medv, committees = 3)
+model <- Cubist::cubist(
+  x = BostonHousing[, -14],
+  y = BostonHousing$medv,
+  committees = 3
+)
 ```
 
 - Create the R formula
@@ -55,10 +59,7 @@ BostonHousing %>%
   glimpse()
     ```
 
-- Confirm that `tidypredict` results match to the model's `predict()` results
-    ```{r}
-tidypredict_test(model, BostonHousing)
-    ```
+We are not able to give an exact match of the original predictions [due to a minor bug](https://github.com/topepo/Cubist/issues/62) in Cubist.
 
 ## Parse model spec
 
@@ -72,3 +73,8 @@ str(pm, 2)
 str(pm$terms[1:2])
 ```
 
+## Limitations
+
+- `tidypredict_test()` is not supported
+- Prediction intervals are not supported
+- Cubist uses 32-bit floats internally, which may cause prediction discrepancies at exact split boundaries. See the [float precision](float-precision.html) article for details.

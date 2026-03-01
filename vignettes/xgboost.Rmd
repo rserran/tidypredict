@@ -51,7 +51,8 @@ xgb_bin_data <- xgboost::xgb.DMatrix(
 
 model <- xgboost::xgb.train(
   params = list(max_depth = 2, objective = "binary:logistic", base_score = 0.5),
-  data = xgb_bin_data, nrounds = 50
+  data = xgb_bin_data,
+  nrounds = 50
 )
 ```
 
@@ -73,6 +74,8 @@ mtcars %>%
     ```{r}
 tidypredict_test(model, mtcars, xg_df = xgb_bin_data)
     ```
+
+Please be aware that XGBoost converts data into 32-bit floats internally. This could lead to prediction discrepancies at exact split boundaries. Always verify that predictions match using `tidypredict_test()`. See the [float precision](float-precision.html) article for more details.
 
 ## parsnip
 
