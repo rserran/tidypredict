@@ -1,5 +1,27 @@
 # tidypredict (development version)
 
+- Added support for `kernlab::ksvm()` linear support vector machine models (`vanilladot` kernel), including `svm_linear()` parsnip models fitted with the `"kernlab"` engine, for regression and binary classification. Non-linear kernels and multiclass classification are not supported, and classification requires a probability model (`prob.model = TRUE`). (#232)
+
+- Added support for H2O gradient boosting models (`H2ORegressionModel`, `H2OBinomialModel`, and `H2OMultinomialModel`), including `boost_tree()` parsnip models fitted with the `"h2o_gbm"` engine, for regression and classification. Only GBM models are supported (not H2O's XGBoost), predictions require a running H2O cluster, and gaussian, bernoulli, and multinomial distributions are supported. (#232)
+
+- Added support for `mboost::blackboost()` gradient boosting regression models, including `boost_tree()` parsnip models fitted with the `"mboost"` engine. Only the `Gaussian()` family is supported. (#232)
+
+- Added support for `aorsf::orsf()` oblique random forest regression models, including `rand_forest()` parsnip models fitted with the `"aorsf"` engine. Only numeric predictors are supported and classification is not supported. (#232)
+
+- Added support for `C50::C5.0()` classification tree models, including `decision_tree()` and `boost_tree()` parsnip models fitted with the `"C5.0"` engine. Boosted models (`trials > 1`) combine trials by confidence-weighted voting. Fuzzy thresholds (`fuzzyThreshold = TRUE`) and cost matrices (`costs`) are not supported. (#232)
+
+- Added support for rule-based `C50::C5.0()` classification models (`rules = TRUE`), including `C5_rules()` parsnip models fitted with the `"C5.0"` engine. Boosted rule-based models (`trials > 1`) are not supported. (#232)
+
+- Added support for `partykit::cforest()` random forest regression models, including `rand_forest()` parsnip models fitted with the `"partykit"` engine. Classification is not supported. (#232)
+
+- Added support for `LiblineaR::LiblineaR()` binary logistic regression models, including `logistic_reg()` parsnip models fitted with the `"LiblineaR"` engine. (#232)
+
+- Added support for `decision_tree()` parsnip models fitted with the `"rpart"` engine. (#232)
+
+- Added support for `linear_reg()` parsnip models fitted with the `"glm"` engine. (#232)
+
+- Added support for `quantreg::rq()` quantile regression models, including `linear_reg()` parsnip models fitted with the `"quantreg"` engine. Models fitted with multiple quantiles return one fit expression per quantile, named by the quantile level. (#232)
+
 # tidypredict 1.1.0
 
 ## New Model Supports

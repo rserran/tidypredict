@@ -29,10 +29,23 @@ tidypredict_fit.pm_tree <- function(model) {
     if (model_type == "cubist") {
       return(tidypredict_fit_cubist(model))
     }
-    if (model_type %in% c("rpart", "party")) {
+    if (model_type %in% c("rpart", "party", "C5.0")) {
+      if (model_type == "C5.0" && !is.null(model$rules_info)) {
+        return(c50_rules_case_when(model$rules_info))
+      }
+      if (model_type == "C5.0" && !is.null(model$tree_info_list)) {
+        return(c50_boosted_case_when(model$tree_info_list, model$classes))
+      }
       return(generate_nested_case_when_tree(model$tree_info))
     }
-    if (model_type %in% c("ranger", "randomForest")) {
+    if (model_type == "blackboost") {
+      return(mboost_build_formula(
+        model$tree_info_list,
+        model$general$nu,
+        model$general$offset
+      ))
+    }
+    if (model_type %in% c("ranger", "randomForest", "cforest", "aorsf")) {
       # For forests, average all trees
       tree_exprs <- map(model$tree_info_list, generate_nested_case_when_tree)
       res <- reduce_addition(tree_exprs)

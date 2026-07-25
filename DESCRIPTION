@@ -10,9 +10,9 @@ Description: It parses a fitted 'R' model object, and returns a formula in
     'Tidy Eval' code that calculates the predictions.  It works with
     several databases back-ends because it leverages 'dplyr' and 'dbplyr'
     for the final 'SQL' translation of the algorithm. It currently
-    supports lm(), glm(), randomForest(), ranger(), rpart(), earth(),
-    xgb.Booster.complete(), lgb.Booster(), catboost.Model(), cubist(), and
-    ctree() models.
+    supports lm(), glm(), randomForest(), ranger(), rpart(), C5.0(),
+    earth(), xgb.Booster.complete(), lgb.Booster(), catboost.Model(),
+    cubist(), ctree(), cforest(), and ksvm() models.
 License: MIT + file LICENSE
 URL: https://tidypredict.tidymodels.org,
     https://github.com/tidymodels/tidypredict
@@ -30,23 +30,32 @@ Imports:
     tibble,
     tidyr
 Suggests:
+    agua,
+    aorsf,
     bonsai,
+    C50,
     covr,
     Cubist (>= 0.5.1),
     DBI,
     dbplyr,
     earth (>= 5.1.2),
     glmnet,
+    h2o,
+    kernlab,
+    LiblineaR,
     lightgbm,
+    mboost,
     methods,
     mlbench,
     modeldata,
     nycflights13,
     parsnip,
     partykit,
+    quantreg,
     randomForest,
     ranger (>= 0.14.1),
     rpart (>= 4.1.0),
+    rules,
     rmarkdown,
     RSQLite,
     survival,
@@ -60,4 +69,4 @@ Config/Needs/website: tidyverse/tidytemplate
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
+Config/roxygen2/version: 8.0.0

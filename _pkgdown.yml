@@ -28,8 +28,14 @@ navbar:
       href: articles/ranger.html
     - text: Random Forest - randomForest()
       href: articles/rf.html
+    - text: Random Forest - partykit - cforest()
+      href: articles/partykit.html
+    - text: Oblique Random Forest - aorsf - orsf()
+      href: articles/aorsf.html
     - text: Decision Tree - rpart()
       href: articles/rpart.html
+    - text: Decision Tree - C5.0()
+      href: articles/C5.0.html
     - text: MARS - earth()
       href: articles/mars.html
     - text: Cubist - cubist()
@@ -40,6 +46,8 @@ navbar:
       href: articles/lightgbm.html
     - text: CatBoost - catboost.Model()
       href: articles/catboost.html
+    - text: H2O GBM - H2OModel
+      href: articles/h2o.html
   - text: Articles
     menu:
     - text: Save/Reload

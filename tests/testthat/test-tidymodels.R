@@ -29,3 +29,287 @@ test_that("works with parsnip model specification", {
     )
   )
 })
+
+test_that("works with decision_tree() and the C5.0 engine", {
+  skip_if_not_installed("C50")
+  df <- mtcars
+  df$vs <- as.factor(df$vs)
+
+  model <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::decision_tree(mode = "classification"),
+      "C5.0"
+    ),
+    vs ~ wt + cyl + mpg,
+    data = df
+  )
+
+  expect_type(tidypredict_fit(model), "language")
+  expect_s3_class(tidypredict_sql(model, dbplyr::simulate_dbi()), "sql")
+  expect_snapshot(tidypredict_test(model, df = df))
+})
+
+test_that("works with C5_rules() and the C5.0 engine", {
+  skip_if_not_installed("C50")
+  skip_if_not_installed("rules")
+  loadNamespace("rules")
+
+  model <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::C5_rules(),
+      "C5.0"
+    ),
+    Species ~ .,
+    data = iris
+  )
+
+  expect_type(tidypredict_fit(model), "language")
+  expect_s3_class(tidypredict_sql(model, dbplyr::simulate_dbi()), "sql")
+  expect_snapshot(tidypredict_test(model, df = iris))
+})
+
+test_that("works with boost_tree() and the C5.0 engine", {
+  skip_if_not_installed("C50")
+
+  model <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::boost_tree(mode = "classification", trees = 10),
+      "C5.0"
+    ),
+    Species ~ .,
+    data = iris
+  )
+
+  expect_type(tidypredict_fit(model), "language")
+  expect_s3_class(tidypredict_sql(model, dbplyr::simulate_dbi()), "sql")
+  expect_snapshot(tidypredict_test(model, df = iris))
+})
+
+test_that("works with boost_tree() and the h2o_gbm engine", {
+  skip_if_no_h2o()
+
+  reg <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::boost_tree(mode = "regression", trees = 10),
+      "h2o_gbm"
+    ),
+    mpg ~ wt + cyl + hp,
+    data = mtcars
+  )
+  expect_type(tidypredict_fit(reg), "language")
+  expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
+  expect_false(tidypredict_test(reg, df = mtcars, threshold = 1e-6)$alert)
+
+  df <- mtcars
+  df$vs <- factor(df$vs)
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::boost_tree(mode = "classification", trees = 10),
+      "h2o_gbm"
+    ),
+    vs ~ wt + cyl + hp,
+    data = df
+  )
+  expect_type(tidypredict_fit(cls), "language")
+  expect_false(tidypredict_test(cls, df = df, threshold = 1e-6)$alert)
+})
+
+test_that("works with linear_reg() and the glm engine", {
+  model <- parsnip::fit(
+    parsnip::set_engine(parsnip::linear_reg(), "glm"),
+    mpg ~ wt + cyl,
+    data = mtcars
+  )
+
+  expect_type(tidypredict_fit(model), "language")
+
+  expect_snapshot(
+    tidypredict_test(model, df = mtcars)
+  )
+})
+
+test_that("works with logistic_reg() and the LiblineaR engine", {
+  skip_if_not_installed("LiblineaR")
+
+  df <- mtcars
+  df$am <- factor(df$am)
+
+  ridge <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::logistic_reg(penalty = 0.1, mixture = 0),
+      "LiblineaR"
+    ),
+    am ~ mpg + cyl + hp,
+    data = df
+  )
+  lasso <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::logistic_reg(penalty = 0.1, mixture = 1),
+      "LiblineaR"
+    ),
+    am ~ mpg + cyl + hp,
+    data = df
+  )
+
+  for (model in list(ridge, lasso)) {
+    expect_type(tidypredict_fit(model), "language")
+    expect_false(tidypredict_test(model, df = df)$alert)
+    expect_s3_class(
+      tidypredict_sql(model, dbplyr::simulate_dbi()),
+      "sql"
+    )
+  }
+})
+
+test_that("works with svm_linear() and the kernlab engine", {
+  skip_if_not_installed("kernlab")
+
+  reg <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::svm_linear(mode = "regression"),
+      "kernlab"
+    ),
+    mpg ~ wt + hp + disp,
+    data = mtcars
+  )
+
+  df <- mtcars
+  df$am <- factor(ifelse(df$am == 1, "yes", "no"))
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::svm_linear(mode = "classification"),
+      "kernlab"
+    ),
+    am ~ wt + hp + disp,
+    data = df
+  )
+
+  for (model in list(reg, cls)) {
+    expect_type(tidypredict_fit(model), "language")
+    expect_s3_class(
+      tidypredict_sql(model, dbplyr::simulate_dbi()),
+      "sql"
+    )
+  }
+  expect_false(tidypredict_test(reg, df = mtcars)$alert)
+  expect_false(tidypredict_test(cls, df = df)$alert)
+})
+
+test_that("works with decision_tree() and the rpart engine", {
+  skip_if_not_installed("rpart")
+
+  # Regression
+  reg <- parsnip::fit(
+    parsnip::set_mode(
+      parsnip::set_engine(parsnip::decision_tree(), "rpart"),
+      "regression"
+    ),
+    mpg ~ wt + cyl,
+    data = mtcars
+  )
+
+  expect_type(tidypredict_fit(reg), "language")
+  expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
+  expect_snapshot(tidypredict_test(reg, df = mtcars))
+
+  # Classification
+  df <- mtcars
+  df$am <- factor(df$am)
+  cls <- parsnip::fit(
+    parsnip::set_mode(
+      parsnip::set_engine(parsnip::decision_tree(), "rpart"),
+      "classification"
+    ),
+    am ~ mpg + cyl + hp,
+    data = df
+  )
+
+  expect_type(tidypredict_fit(cls), "language")
+  expect_s3_class(tidypredict_sql(cls, dbplyr::simulate_dbi()), "sql")
+})
+
+test_that("works with rand_forest() and the partykit engine", {
+  skip_if_not_installed("bonsai")
+  skip_if_not_installed("partykit")
+
+  set.seed(1)
+  reg <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::rand_forest(mode = "regression", trees = 20),
+      "partykit"
+    ),
+    mpg ~ wt + cyl,
+    data = mtcars
+  )
+
+  expect_type(tidypredict_fit(reg), "language")
+  expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
+  expect_snapshot(tidypredict_test(reg, df = mtcars))
+
+  # Classification is not supported
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::rand_forest(mode = "classification", trees = 5),
+      "partykit"
+    ),
+    Species ~ .,
+    data = iris
+  )
+  expect_snapshot(error = TRUE, tidypredict_fit(cls))
+})
+
+test_that("works with rand_forest() and the aorsf engine", {
+  skip_if_not_installed("bonsai")
+  skip_if_not_installed("aorsf")
+
+  set.seed(1)
+  reg <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::rand_forest(mode = "regression", trees = 20),
+      "aorsf"
+    ),
+    mpg ~ wt + cyl + disp,
+    data = mtcars
+  )
+
+  expect_type(tidypredict_fit(reg), "language")
+  expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
+
+  # aorsf uses observed split values as cutpoints, so agreement is checked on
+  # jittered data to avoid exact training-row boundary ties.
+  set.seed(99)
+  nd <- mtcars
+  nd[] <- lapply(mtcars, function(x) x + rnorm(length(x), 0, 0.01))
+  expect_false(tidypredict_test(reg, df = nd)$alert)
+
+  # Classification is not supported
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::rand_forest(mode = "classification", trees = 5),
+      "aorsf"
+    ),
+    Species ~ .,
+    data = iris
+  )
+  expect_snapshot(error = TRUE, tidypredict_fit(cls))
+})
+
+test_that("works with linear_reg() and the quantreg engine", {
+  skip_if_not_installed("quantreg")
+
+  model <- parsnip::fit(
+    parsnip::set_mode(
+      parsnip::set_engine(parsnip::linear_reg(), "quantreg"),
+      "quantile regression",
+      quantile_levels = 0.5
+    ),
+    mpg ~ wt + cyl,
+    data = mtcars
+  )
+
+  expect_type(tidypredict_fit(model), "language")
+
+  expect_snapshot(
+    tidypredict_test(model, df = mtcars)
+  )
+})
