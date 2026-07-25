@@ -2,6 +2,95 @@
 
 ## tidypredict (development version)
 
+- Added support for
+  [`kernlab::ksvm()`](https://rdrr.io/pkg/kernlab/man/ksvm.html) linear
+  support vector machine models (`vanilladot` kernel), including
+  [`svm_linear()`](https://parsnip.tidymodels.org/reference/svm_linear.html)
+  parsnip models fitted with the `"kernlab"` engine, for regression and
+  binary classification. Non-linear kernels and multiclass
+  classification are not supported, and classification requires a
+  probability model (`prob.model = TRUE`).
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for H2O gradient boosting models (`H2ORegressionModel`,
+  `H2OBinomialModel`, and `H2OMultinomialModel`), including
+  [`boost_tree()`](https://parsnip.tidymodels.org/reference/boost_tree.html)
+  parsnip models fitted with the `"h2o_gbm"` engine, for regression and
+  classification. Only GBM models are supported (not H2O’s XGBoost),
+  predictions require a running H2O cluster, and gaussian, bernoulli,
+  and multinomial distributions are supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`mboost::blackboost()`](https://rdrr.io/pkg/mboost/man/blackboost.html)
+  gradient boosting regression models, including
+  [`boost_tree()`](https://parsnip.tidymodels.org/reference/boost_tree.html)
+  parsnip models fitted with the `"mboost"` engine. Only the
+  `Gaussian()` family is supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`aorsf::orsf()`](https://docs.ropensci.org/aorsf/reference/orsf.html)
+  oblique random forest regression models, including
+  [`rand_forest()`](https://parsnip.tidymodels.org/reference/rand_forest.html)
+  parsnip models fitted with the `"aorsf"` engine. Only numeric
+  predictors are supported and classification is not supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`C50::C5.0()`](https://topepo.github.io/C5.0/reference/C5.0.html)
+  classification tree models, including
+  [`decision_tree()`](https://parsnip.tidymodels.org/reference/decision_tree.html)
+  and
+  [`boost_tree()`](https://parsnip.tidymodels.org/reference/boost_tree.html)
+  parsnip models fitted with the `"C5.0"` engine. Boosted models
+  (`trials > 1`) combine trials by confidence-weighted voting. Fuzzy
+  thresholds (`fuzzyThreshold = TRUE`) and cost matrices (`costs`) are
+  not supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for rule-based
+  [`C50::C5.0()`](https://topepo.github.io/C5.0/reference/C5.0.html)
+  classification models (`rules = TRUE`), including
+  [`C5_rules()`](https://parsnip.tidymodels.org/reference/C5_rules.html)
+  parsnip models fitted with the `"C5.0"` engine. Boosted rule-based
+  models (`trials > 1`) are not supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`partykit::cforest()`](https://rdrr.io/pkg/partykit/man/cforest.html)
+  random forest regression models, including
+  [`rand_forest()`](https://parsnip.tidymodels.org/reference/rand_forest.html)
+  parsnip models fitted with the `"partykit"` engine. Classification is
+  not supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`LiblineaR::LiblineaR()`](https://rdrr.io/pkg/LiblineaR/man/LiblineaR.html)
+  binary logistic regression models, including
+  [`logistic_reg()`](https://parsnip.tidymodels.org/reference/logistic_reg.html)
+  parsnip models fitted with the `"LiblineaR"` engine.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`decision_tree()`](https://parsnip.tidymodels.org/reference/decision_tree.html)
+  parsnip models fitted with the `"rpart"` engine.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`linear_reg()`](https://parsnip.tidymodels.org/reference/linear_reg.html)
+  parsnip models fitted with the `"glm"` engine.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`quantreg::rq()`](https://rdrr.io/pkg/quantreg/man/rq.html) quantile
+  regression models, including
+  [`linear_reg()`](https://parsnip.tidymodels.org/reference/linear_reg.html)
+  parsnip models fitted with the `"quantreg"` engine. Models fitted with
+  multiple quantiles return one fit expression per quantile, named by
+  the quantile level.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
 ## tidypredict 1.1.0
 
 CRAN release: 2026-02-27
@@ -328,7 +417,8 @@ CRAN release: 2019-07-12
   [`as_parsed_model()`](https://tidypredict.tidymodels.org/reference/as_parsed_model.md)
   function. It adds the proper class components to the list.
 
-- Adds initial support for `partykit`’s `ctree()` model
+- Adds initial support for `partykit`’s
+  [`ctree()`](https://rdrr.io/pkg/partykit/man/ctree.html) model
 
 - Adds support for `parsnip` fitted models: `lm`, `randomForest`,
   `ranger`, and `earth`

@@ -18,6 +18,7 @@ tidypredict_fit(model)
 ## Examples
 
 ``` r
+
 model <- lm(mpg ~ wt + cyl * disp, offset = am, data = mtcars)
 tidypredict_fit(model)
 #> 46.9691423291322 + (wt * -2.43434983315996) + (cyl * -2.86061920499755) + 

@@ -2,6 +2,10 @@
 
 ### All vignettes
 
+- [Oblique Random Forest, using
+  aorsf](https://tidypredict.tidymodels.org/articles/aorsf.md):
+- [Decision trees, using
+  C5.0](https://tidypredict.tidymodels.org/articles/C5.0.md):
 - [catboost
   models](https://tidypredict.tidymodels.org/articles/catboost.md):
 - [Cubist
@@ -12,6 +16,8 @@
   Regression](https://tidypredict.tidymodels.org/articles/glm.md):
 - [glmnet
   models](https://tidypredict.tidymodels.org/articles/glmnet.md):
+- [Gradient boosting, using
+  H2O](https://tidypredict.tidymodels.org/articles/h2o.md):
 - [LightGBM
   models](https://tidypredict.tidymodels.org/articles/lightgbm.md):
 - [Linear
@@ -19,6 +25,8 @@
 - [MARS models via the \`earth\`
   package](https://tidypredict.tidymodels.org/articles/mars.md):
 - [Non-R Models](https://tidypredict.tidymodels.org/articles/non-r.md):
+- [Random Forest -
+  partykit](https://tidypredict.tidymodels.org/articles/partykit.md):
 - [Random Forest, using
   Ranger](https://tidypredict.tidymodels.org/articles/ranger.md):
 - [Create a regression spec - version

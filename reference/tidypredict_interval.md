@@ -27,6 +27,7 @@ obtain the upper and lower bound respectively.
 ## Examples
 
 ``` r
+
 model <- lm(mpg ~ wt + cyl * disp, offset = am, data = mtcars)
 tidypredict_interval(model)
 #> 2.05183051648029 * sqrt((-0.176776695296637) * (-0.176776695296637) * 

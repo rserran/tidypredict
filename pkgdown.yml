@@ -1,16 +1,20 @@
-pandoc: 3.1.11
-pkgdown: 2.2.0
+pandoc: 3.8.3
+pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
+  aorsf: aorsf.html
+  C5.0: C5.0.html
   catboost: catboost.html
   cubist: cubist.html
   float-precision: float-precision.html
   glm: glm.html
   glmnet: glmnet.html
+  h2o: h2o.html
   lightgbm: lightgbm.html
   lm: lm.html
   mars: mars.html
   non-r: non-r.html
+  partykit: partykit.html
   ranger: ranger.html
   regression: regression.html
   rf: rf.html
@@ -20,7 +24,7 @@ articles:
   tree-internals: tree-internals.html
   tree: tree.html
   xgboost: xgboost.html
-last_built: 2026-03-01T18:12Z
+last_built: 2026-07-25T19:58Z
 urls:
   reference: https://tidypredict.tidymodels.org/reference
   article: https://tidypredict.tidymodels.org/articles
