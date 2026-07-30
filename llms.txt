@@ -237,6 +237,7 @@ By contributing to this project, you agree to abide by its terms.
   models](https://tidypredict.tidymodels.org/articles/catboost.md):
 - [Cubist
   models](https://tidypredict.tidymodels.org/articles/cubist.md):
+- [fda models](https://tidypredict.tidymodels.org/articles/fda.md):
 - [Float precision at split
   boundaries](https://tidypredict.tidymodels.org/articles/float-precision.md):
 - [Generalized Linear
@@ -245,13 +246,20 @@ By contributing to this project, you agree to abide by its terms.
   models](https://tidypredict.tidymodels.org/articles/glmnet.md):
 - [Gradient boosting, using
   H2O](https://tidypredict.tidymodels.org/articles/h2o.md):
+- [lda models](https://tidypredict.tidymodels.org/articles/lda.md):
 - [LightGBM
   models](https://tidypredict.tidymodels.org/articles/lightgbm.md):
 - [Linear
   Regression](https://tidypredict.tidymodels.org/articles/lm.md):
 - [MARS models via the \`earth\`
   package](https://tidypredict.tidymodels.org/articles/mars.md):
+- [mixOmics PLS
+  models](https://tidypredict.tidymodels.org/articles/mixOmics.md):
+- [multinom
+  models](https://tidypredict.tidymodels.org/articles/multinom.md):
 - [Non-R Models](https://tidypredict.tidymodels.org/articles/non-r.md):
+- [nullmodel
+  models](https://tidypredict.tidymodels.org/articles/nullmodel.md):
 - [Random Forest -
   partykit](https://tidypredict.tidymodels.org/articles/partykit.md):
 - [Random Forest, using
@@ -263,6 +271,9 @@ By contributing to this project, you agree to abide by its terms.
   rpart](https://tidypredict.tidymodels.org/articles/rpart.md):
 - [Save and re-load
   models](https://tidypredict.tidymodels.org/articles/save.md):
+- [sda models](https://tidypredict.tidymodels.org/articles/sda.md):
+- [sparsediscrim
+  models](https://tidypredict.tidymodels.org/articles/sparsediscrim.md):
 - [Database
   write-back](https://tidypredict.tidymodels.org/articles/sql.md):
 - [How tidypredict generates tree

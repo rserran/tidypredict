@@ -6,25 +6,32 @@ articles:
   C5.0: C5.0.html
   catboost: catboost.html
   cubist: cubist.html
+  fda: fda.html
   float-precision: float-precision.html
   glm: glm.html
   glmnet: glmnet.html
   h2o: h2o.html
+  lda: lda.html
   lightgbm: lightgbm.html
   lm: lm.html
   mars: mars.html
+  mixOmics: mixOmics.html
+  multinom: multinom.html
   non-r: non-r.html
+  nullmodel: nullmodel.html
   partykit: partykit.html
   ranger: ranger.html
   regression: regression.html
   rf: rf.html
   rpart: rpart.html
   save: save.html
+  sda: sda.html
+  sparsediscrim: sparsediscrim.html
   sql: sql.html
   tree-internals: tree-internals.html
   tree: tree.html
   xgboost: xgboost.html
-last_built: 2026-07-25T19:58Z
+last_built: 2026-07-30T23:23Z
 urls:
   reference: https://tidypredict.tidymodels.org/reference
   article: https://tidypredict.tidymodels.org/articles

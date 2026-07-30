@@ -38,6 +38,12 @@
 <li><a class="dropdown-item" href="../articles/lm.html">Linear Regression - lm()</a></li>
     <li><a class="dropdown-item" href="../articles/glm.html">Generalized Regression - glm()</a></li>
     <li><a class="dropdown-item" href="../articles/glmnet.html">Regularized Regression - glmnet()</a></li>
+    <li><a class="dropdown-item" href="../articles/multinom.html">Multinomial Regression - multinom()</a></li>
+    <li><a class="dropdown-item" href="../articles/fda.html">Flexible Discriminant Analysis - fda()</a></li>
+    <li><a class="dropdown-item" href="../articles/lda.html">Linear Discriminant Analysis - lda()</a></li>
+    <li><a class="dropdown-item" href="../articles/sda.html">Shrinkage Discriminant Analysis - sda()</a></li>
+    <li><a class="dropdown-item" href="../articles/sparsediscrim.html">Regularized Discriminant Analysis - sparsediscrim</a></li>
+    <li><a class="dropdown-item" href="../articles/mixOmics.html">Partial Least Squares - mixOmics</a></li>
     <li><a class="dropdown-item" href="../articles/ranger.html">Random Forest - Ranger - ranger()</a></li>
     <li><a class="dropdown-item" href="../articles/rf.html">Random Forest - randomForest()</a></li>
     <li><a class="dropdown-item" href="../articles/partykit.html">Random Forest - partykit - cforest()</a></li>
@@ -50,6 +56,7 @@
     <li><a class="dropdown-item" href="../articles/lightgbm.html">LightGBM - lgb.Booster()</a></li>
     <li><a class="dropdown-item" href="../articles/catboost.html">CatBoost - catboost.Model()</a></li>
     <li><a class="dropdown-item" href="../articles/h2o.html">H2O GBM - H2OModel</a></li>
+    <li><a class="dropdown-item" href="../articles/nullmodel.html">Null Model - nullmodel()</a></li>
   </ul>
 </li>
 <li class="nav-item dropdown">
@@ -134,18 +141,18 @@
 <code>tidypredict_</code> functions<a class="anchor" aria-label="anchor" href="#tidypredict_-functions"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">catboost</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://catboost.ai/" class="external-link">catboost</a></span><span class="op">)</span></span>
 <span><span class="co"># Prepare data</span></span>
 <span><span class="va">X</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.matrix.html" class="external-link">data.matrix</a></span><span class="op">(</span><span class="va">mtcars</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mpg"</span>, <span class="st">"cyl"</span>, <span class="st">"disp"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="va">y</span> <span class="op">&lt;-</span> <span class="va">mtcars</span><span class="op">$</span><span class="va">hp</span></span>
 <span></span>
-<span><span class="va">pool</span> <span class="op">&lt;-</span> <span class="fu">catboost.load_pool</span><span class="op">(</span></span>
+<span><span class="va">pool</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/catboost/man/catboost.load_pool.html" class="external-link">catboost.load_pool</a></span><span class="op">(</span></span>
 <span>  <span class="va">X</span>,</span>
 <span>  label <span class="op">=</span> <span class="va">y</span>,</span>
 <span>  feature_names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">as.list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mpg"</span>, <span class="st">"cyl"</span>, <span class="st">"disp"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu">catboost.train</span><span class="op">(</span></span>
+<span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/catboost/man/catboost.train.html" class="external-link">catboost.train</a></span><span class="op">(</span></span>
 <span>  <span class="va">pool</span>,</span>
 <span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>    iterations <span class="op">=</span> <span class="fl">10L</span>,</span>
@@ -214,13 +221,13 @@ are supported by <code>tidypredict</code>:</p>
 <code class="sourceCode R"><span><span class="va">X_bin</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.matrix.html" class="external-link">data.matrix</a></span><span class="op">(</span><span class="va">mtcars</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mpg"</span>, <span class="st">"cyl"</span>, <span class="st">"disp"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="va">y_bin</span> <span class="op">&lt;-</span> <span class="va">mtcars</span><span class="op">$</span><span class="va">am</span></span>
 <span></span>
-<span><span class="va">pool_bin</span> <span class="op">&lt;-</span> <span class="fu">catboost.load_pool</span><span class="op">(</span></span>
+<span><span class="va">pool_bin</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/catboost/man/catboost.load_pool.html" class="external-link">catboost.load_pool</a></span><span class="op">(</span></span>
 <span>  <span class="va">X_bin</span>,</span>
 <span>  label <span class="op">=</span> <span class="va">y_bin</span>,</span>
 <span>  feature_names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">as.list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mpg"</span>, <span class="st">"cyl"</span>, <span class="st">"disp"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">model_bin</span> <span class="op">&lt;-</span> <span class="fu">catboost.train</span><span class="op">(</span></span>
+<span><span class="va">model_bin</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/catboost/man/catboost.train.html" class="external-link">catboost.train</a></span><span class="op">(</span></span>
 <span>  <span class="va">pool_bin</span>,</span>
 <span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>    iterations <span class="op">=</span> <span class="fl">10L</span>,</span>
@@ -241,13 +248,13 @@ are supported by <code>tidypredict</code>:</p>
 <code class="sourceCode R"><span><span class="va">X_multi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.matrix.html" class="external-link">data.matrix</a></span><span class="op">(</span><span class="va">iris</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="va">y_multi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">iris</span><span class="op">$</span><span class="va">Species</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span></span>
 <span></span>
-<span><span class="va">pool_multi</span> <span class="op">&lt;-</span> <span class="fu">catboost.load_pool</span><span class="op">(</span></span>
+<span><span class="va">pool_multi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/catboost/man/catboost.load_pool.html" class="external-link">catboost.load_pool</a></span><span class="op">(</span></span>
 <span>  <span class="va">X_multi</span>,</span>
 <span>  label <span class="op">=</span> <span class="va">y_multi</span>,</span>
 <span>  feature_names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">as.list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">model_multi</span> <span class="op">&lt;-</span> <span class="fu">catboost.train</span><span class="op">(</span></span>
+<span><span class="va">model_multi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/catboost/man/catboost.train.html" class="external-link">catboost.train</a></span><span class="op">(</span></span>
 <span>  <span class="va">pool_multi</span>,</span>
 <span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>    iterations <span class="op">=</span> <span class="fl">10L</span>,</span>
@@ -301,12 +308,12 @@ automatically:</p>
 <p>For raw CatBoost models, you need to manually establish the
 hash-to-category mapping:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">pool_cat</span> <span class="op">&lt;-</span> <span class="fu">catboost.load_pool</span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">pool_cat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/catboost/man/catboost.load_pool.html" class="external-link">catboost.load_pool</a></span><span class="op">(</span></span>
 <span>  <span class="va">df_cat</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"num_feat"</span>, <span class="st">"cat_feat"</span><span class="op">)</span><span class="op">]</span>,</span>
 <span>  label <span class="op">=</span> <span class="va">df_cat</span><span class="op">$</span><span class="va">target</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">model_cat</span> <span class="op">&lt;-</span> <span class="fu">catboost.train</span><span class="op">(</span></span>
+<span><span class="va">model_cat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/catboost/man/catboost.train.html" class="external-link">catboost.train</a></span><span class="op">(</span></span>
 <span>  <span class="va">pool_cat</span>,</span>
 <span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>    iterations <span class="op">=</span> <span class="fl">10L</span>,</span>

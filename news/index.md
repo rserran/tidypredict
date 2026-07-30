@@ -3,6 +3,102 @@
 ## tidypredict (development version)
 
 - Added support for
+  [`parsnip::nullmodel()`](https://parsnip.tidymodels.org/reference/nullmodel.html)
+  models, including
+  [`null_model()`](https://parsnip.tidymodels.org/reference/null_model.html)
+  parsnip models fitted with the `"parsnip"` engine. Regression models
+  return the outcome mean as a single expression, and classification
+  models return a named list of constant class-probability expressions,
+  for which
+  [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md)
+  is not supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for the partial least squares models in `mixOmics`
+  ([`pls()`](https://parsnip.tidymodels.org/reference/pls.html),
+  `spls()`, `plsda()`, and `splsda()`), including
+  [`pls()`](https://parsnip.tidymodels.org/reference/pls.html) parsnip
+  models fitted with the `"mixOmics"` engine, for regression and
+  classification. Single-outcome regression models return one
+  expression, multivariate outcomes return a named list of expressions,
+  and the discriminant variants return a named list of class-probability
+  expressions (softmax), for which
+  [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md)
+  is not supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for multinomial
+  [`glmnet::glmnet()`](https://glmnet.stanford.edu/reference/glmnet.html)
+  models (`family = "multinomial"`), including
+  [`multinom_reg()`](https://parsnip.tidymodels.org/reference/multinom_reg.html)
+  parsnip models fitted with the `"glmnet"` engine.
+  [`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md)
+  returns a named list of class-probability expressions (softmax), and
+  [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md)
+  is not supported for these multiclass models.
+  ([\#198](https://github.com/tidymodels/tidypredict/issues/198))
+
+- Added support for
+  [`nnet::multinom()`](https://rdrr.io/pkg/nnet/man/multinom.html)
+  multinomial log-linear models, including
+  [`multinom_reg()`](https://parsnip.tidymodels.org/reference/multinom_reg.html)
+  parsnip models fitted with the `"nnet"` engine.
+  [`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md)
+  returns a named list of class-probability expressions (softmax), and
+  [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md)
+  is not supported for these multiclass models.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for [`sda::sda()`](https://rdrr.io/pkg/sda/man/sda.html)
+  shrinkage discriminant analysis models, including
+  [`discrim_linear()`](https://parsnip.tidymodels.org/reference/discrim_linear.html)
+  parsnip models fitted with the `"sda"` engine.
+  [`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md)
+  returns a named list of class-probability expressions (softmax), and
+  [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md)
+  is not supported for these multiclass models.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for the regularized linear discriminant analysis models
+  in `sparsediscrim` (`lda_diag()`, `lda_shrink_mean()`,
+  `lda_shrink_cov()`, and `lda_emp_bayes_eigen()`), including
+  [`discrim_linear()`](https://parsnip.tidymodels.org/reference/discrim_linear.html)
+  parsnip models fitted with the `"sparsediscrim"` engine.
+  [`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md)
+  returns a named list of class-probability expressions (softmax of the
+  per-class discriminant scores), and
+  [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md)
+  is not supported for these multiclass models.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for [`mda::fda()`](https://rdrr.io/pkg/mda/man/fda.html)
+  flexible discriminant analysis models fit with a linear regression
+  method ([`mda::polyreg()`](https://rdrr.io/pkg/mda/man/polyreg.html)
+  with `degree = 1` or
+  [`mda::gen.ridge()`](https://rdrr.io/pkg/mda/man/gen.ridge.html)),
+  including
+  [`discrim_linear()`](https://parsnip.tidymodels.org/reference/discrim_linear.html)
+  parsnip models fitted with the `"mda"` engine.
+  [`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md)
+  returns a named list of class-probability expressions (softmax of the
+  per-class discriminant scores), and
+  [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md)
+  is not supported for these multiclass models.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
+  [`MASS::lda()`](https://rdrr.io/pkg/MASS/man/lda.html) linear
+  discriminant analysis models, including
+  [`discrim_linear()`](https://parsnip.tidymodels.org/reference/discrim_linear.html)
+  parsnip models fitted with the `"MASS"` engine.
+  [`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md)
+  returns a named list of class-probability expressions (softmax of the
+  per-class discriminant scores), and
+  [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md)
+  is not supported for these multiclass models.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for
   [`kernlab::ksvm()`](https://rdrr.io/pkg/kernlab/man/ksvm.html) linear
   support vector machine models (`vanilladot` kernel), including
   [`svm_linear()`](https://parsnip.tidymodels.org/reference/svm_linear.html)
@@ -19,6 +115,16 @@
   classification. Only GBM models are supported (not H2O’s XGBoost),
   predictions require a running H2O cluster, and gaussian, bernoulli,
   and multinomial distributions are supported.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for H2O RuleFit models
+  ([`h2o::h2o.rulefit()`](https://rdrr.io/pkg/h2o/man/h2o.rulefit.html)),
+  including
+  [`rule_fit()`](https://parsnip.tidymodels.org/reference/rule_fit.html)
+  parsnip models fitted with the `"h2o"` engine, for regression and
+  binary classification. Predictions require a running H2O cluster, and
+  multiclass models are not supported because `h2o.rule_importance()`
+  does not expose the per-class coefficients.
   ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
 
 - Added support for
@@ -67,9 +173,23 @@
 
 - Added support for
   [`LiblineaR::LiblineaR()`](https://rdrr.io/pkg/LiblineaR/man/LiblineaR.html)
-  binary logistic regression models, including
+  binary logistic regression models (`type` 0, 6, 7), including
   [`logistic_reg()`](https://parsnip.tidymodels.org/reference/logistic_reg.html)
-  parsnip models fitted with the `"LiblineaR"` engine.
+  parsnip models fitted with the `"LiblineaR"` engine. Also added
+  support for linear support vector machine models, including
+  [`svm_linear()`](https://parsnip.tidymodels.org/reference/svm_linear.html)
+  parsnip models fitted with the `"LiblineaR"` engine, for regression
+  (`type` 11, 12, 13) and binary classification (`type` 1-5).
+  Classification returns the SVM decision value rather than a
+  probability.
+  ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
+
+- Added support for [`xrf::xrf()`](https://rdrr.io/pkg/xrf/man/xrf.html)
+  rule-based models (RuleFit), including
+  [`rule_fit()`](https://parsnip.tidymodels.org/reference/rule_fit.html)
+  parsnip models fitted with the `"xrf"` engine, for regression
+  (`family = "gaussian"`) and binary classification
+  (`family = "binomial"`). Multinomial models are not supported.
   ([\#232](https://github.com/tidymodels/tidypredict/issues/232))
 
 - Added support for
