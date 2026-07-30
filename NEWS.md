@@ -1,8 +1,26 @@
 # tidypredict (development version)
 
+- Added support for `parsnip::nullmodel()` models, including `null_model()` parsnip models fitted with the `"parsnip"` engine. Regression models return the outcome mean as a single expression, and classification models return a named list of constant class-probability expressions, for which `tidypredict_test()` is not supported. (#232)
+
+- Added support for the partial least squares models in `mixOmics` (`pls()`, `spls()`, `plsda()`, and `splsda()`), including `pls()` parsnip models fitted with the `"mixOmics"` engine, for regression and classification. Single-outcome regression models return one expression, multivariate outcomes return a named list of expressions, and the discriminant variants return a named list of class-probability expressions (softmax), for which `tidypredict_test()` is not supported. (#232)
+
+- Added support for multinomial `glmnet::glmnet()` models (`family = "multinomial"`), including `multinom_reg()` parsnip models fitted with the `"glmnet"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax), and `tidypredict_test()` is not supported for these multiclass models. (#198)
+
+- Added support for `nnet::multinom()` multinomial log-linear models, including `multinom_reg()` parsnip models fitted with the `"nnet"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax), and `tidypredict_test()` is not supported for these multiclass models. (#232)
+
+- Added support for `sda::sda()` shrinkage discriminant analysis models, including `discrim_linear()` parsnip models fitted with the `"sda"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax), and `tidypredict_test()` is not supported for these multiclass models. (#232)
+
+- Added support for the regularized linear discriminant analysis models in `sparsediscrim` (`lda_diag()`, `lda_shrink_mean()`, `lda_shrink_cov()`, and `lda_emp_bayes_eigen()`), including `discrim_linear()` parsnip models fitted with the `"sparsediscrim"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax of the per-class discriminant scores), and `tidypredict_test()` is not supported for these multiclass models. (#232)
+
+- Added support for `mda::fda()` flexible discriminant analysis models fit with a linear regression method (`mda::polyreg()` with `degree = 1` or `mda::gen.ridge()`), including `discrim_linear()` parsnip models fitted with the `"mda"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax of the per-class discriminant scores), and `tidypredict_test()` is not supported for these multiclass models. (#232)
+
+- Added support for `MASS::lda()` linear discriminant analysis models, including `discrim_linear()` parsnip models fitted with the `"MASS"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax of the per-class discriminant scores), and `tidypredict_test()` is not supported for these multiclass models. (#232)
+
 - Added support for `kernlab::ksvm()` linear support vector machine models (`vanilladot` kernel), including `svm_linear()` parsnip models fitted with the `"kernlab"` engine, for regression and binary classification. Non-linear kernels and multiclass classification are not supported, and classification requires a probability model (`prob.model = TRUE`). (#232)
 
 - Added support for H2O gradient boosting models (`H2ORegressionModel`, `H2OBinomialModel`, and `H2OMultinomialModel`), including `boost_tree()` parsnip models fitted with the `"h2o_gbm"` engine, for regression and classification. Only GBM models are supported (not H2O's XGBoost), predictions require a running H2O cluster, and gaussian, bernoulli, and multinomial distributions are supported. (#232)
+
+- Added support for H2O RuleFit models (`h2o::h2o.rulefit()`), including `rule_fit()` parsnip models fitted with the `"h2o"` engine, for regression and binary classification. Predictions require a running H2O cluster, and multiclass models are not supported because `h2o.rule_importance()` does not expose the per-class coefficients. (#232)
 
 - Added support for `mboost::blackboost()` gradient boosting regression models, including `boost_tree()` parsnip models fitted with the `"mboost"` engine. Only the `Gaussian()` family is supported. (#232)
 
@@ -14,7 +32,9 @@
 
 - Added support for `partykit::cforest()` random forest regression models, including `rand_forest()` parsnip models fitted with the `"partykit"` engine. Classification is not supported. (#232)
 
-- Added support for `LiblineaR::LiblineaR()` binary logistic regression models, including `logistic_reg()` parsnip models fitted with the `"LiblineaR"` engine. (#232)
+- Added support for `LiblineaR::LiblineaR()` binary logistic regression models (`type` 0, 6, 7), including `logistic_reg()` parsnip models fitted with the `"LiblineaR"` engine. Also added support for linear support vector machine models, including `svm_linear()` parsnip models fitted with the `"LiblineaR"` engine, for regression (`type` 11, 12, 13) and binary classification (`type` 1-5). Classification returns the SVM decision value rather than a probability. (#232)
+
+- Added support for `xrf::xrf()` rule-based models (RuleFit), including `rule_fit()` parsnip models fitted with the `"xrf"` engine, for regression (`family = "gaussian"`) and binary classification (`family = "binomial"`). Multinomial models are not supported. (#232)
 
 - Added support for `decision_tree()` parsnip models fitted with the `"rpart"` engine. (#232)
 

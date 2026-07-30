@@ -114,6 +114,29 @@ test_that("works with boost_tree() and the h2o_gbm engine", {
   expect_false(tidypredict_test(cls, df = df, threshold = 1e-6)$alert)
 })
 
+test_that("works with rule_fit() and the h2o engine", {
+  skip_if_no_h2o()
+
+  reg <- parsnip::fit(
+    parsnip::set_engine(parsnip::rule_fit(mode = "regression"), "h2o"),
+    mpg ~ wt + hp + disp,
+    data = mtcars
+  )
+  expect_type(tidypredict_fit(reg), "language")
+  expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
+  expect_false(tidypredict_test(reg, df = mtcars, threshold = 1e-6)$alert)
+
+  df <- mtcars
+  df$vs <- factor(df$vs)
+  cls <- parsnip::fit(
+    parsnip::set_engine(parsnip::rule_fit(mode = "classification"), "h2o"),
+    vs ~ wt + hp + disp + mpg,
+    data = df
+  )
+  expect_type(tidypredict_fit(cls), "language")
+  expect_false(tidypredict_test(cls, df = df, threshold = 1e-6)$alert)
+})
+
 test_that("works with linear_reg() and the glm engine", {
   model <- parsnip::fit(
     parsnip::set_engine(parsnip::linear_reg(), "glm"),
@@ -159,6 +182,40 @@ test_that("works with logistic_reg() and the LiblineaR engine", {
       "sql"
     )
   }
+})
+
+test_that("works with svm_linear() and the LiblineaR engine", {
+  skip_if_not_installed("LiblineaR")
+
+  reg <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::svm_linear(mode = "regression"),
+      "LiblineaR"
+    ),
+    mpg ~ wt + hp + disp,
+    data = mtcars
+  )
+
+  df <- mtcars
+  df$am <- factor(ifelse(df$am == 1, "yes", "no"))
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::svm_linear(mode = "classification"),
+      "LiblineaR"
+    ),
+    am ~ wt + hp + disp,
+    data = df
+  )
+
+  for (model in list(reg, cls)) {
+    expect_type(tidypredict_fit(model), "language")
+    expect_s3_class(
+      tidypredict_sql(model, dbplyr::simulate_dbi()),
+      "sql"
+    )
+  }
+  expect_false(tidypredict_test(reg, df = mtcars)$alert)
+  expect_false(tidypredict_test(cls, df = df)$alert)
 })
 
 test_that("works with svm_linear() and the kernlab engine", {
@@ -311,5 +368,55 @@ test_that("works with linear_reg() and the quantreg engine", {
 
   expect_snapshot(
     tidypredict_test(model, df = mtcars)
+  )
+})
+
+test_that("works with rule_fit() and the xrf engine", {
+  skip_if_not_installed("rules")
+  skip_if_not_installed("xrf")
+  # {rules} must be attached for parsnip's xrf prediction to resolve.
+  withr::local_package("rules")
+
+  df <- mtcars
+  df$cyl <- factor(df$cyl)
+
+  set.seed(1)
+  reg <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::rule_fit(mode = "regression", trees = 5, penalty = 0.1),
+      "xrf"
+    ),
+    mpg ~ wt + hp + cyl,
+    data = df
+  )
+
+  cls_df <- mtcars
+  cls_df$am <- factor(ifelse(cls_df$am == 1, "yes", "no"))
+  set.seed(1)
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::rule_fit(mode = "classification", trees = 5, penalty = 0.01),
+      "xrf"
+    ),
+    am ~ wt + hp + disp,
+    data = cls_df
+  )
+
+  for (model in list(reg, cls)) {
+    expect_type(tidypredict_fit(model), "language")
+    expect_s3_class(
+      tidypredict_sql(model, dbplyr::simulate_dbi()),
+      "sql"
+    )
+  }
+
+  # The tuned `penalty` is used, not the cross-validated minimum.
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(reg), df),
+    as.numeric(predict(reg, df)$.pred)
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(cls), cls_df),
+    predict(cls, cls_df, type = "prob")$.pred_yes
   )
 })
