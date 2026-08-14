@@ -8,11 +8,11 @@ test_that("works with parsnip model specification", {
     data = etitanic_fac
   )
 
-  expect_snapshot(
+  expect_false(
     tidypredict_test(
       model,
       df = etitanic_fac
-    )
+    )$alert
   )
 
   # Regression
@@ -22,11 +22,11 @@ test_that("works with parsnip model specification", {
     data = etitanic
   )
 
-  expect_snapshot(
+  expect_false(
     tidypredict_test(
       model,
       df = etitanic_fac
-    )
+    )$alert
   )
 })
 
@@ -46,7 +46,7 @@ test_that("works with decision_tree() and the C5.0 engine", {
 
   expect_type(tidypredict_fit(model), "language")
   expect_s3_class(tidypredict_sql(model, dbplyr::simulate_dbi()), "sql")
-  expect_snapshot(tidypredict_test(model, df = df))
+  expect_false(tidypredict_test(model, df = df)$alert)
 })
 
 test_that("works with C5_rules() and the C5.0 engine", {
@@ -65,7 +65,7 @@ test_that("works with C5_rules() and the C5.0 engine", {
 
   expect_type(tidypredict_fit(model), "language")
   expect_s3_class(tidypredict_sql(model, dbplyr::simulate_dbi()), "sql")
-  expect_snapshot(tidypredict_test(model, df = iris))
+  expect_false(tidypredict_test(model, df = iris)$alert)
 })
 
 test_that("works with boost_tree() and the C5.0 engine", {
@@ -82,7 +82,7 @@ test_that("works with boost_tree() and the C5.0 engine", {
 
   expect_type(tidypredict_fit(model), "language")
   expect_s3_class(tidypredict_sql(model, dbplyr::simulate_dbi()), "sql")
-  expect_snapshot(tidypredict_test(model, df = iris))
+  expect_false(tidypredict_test(model, df = iris)$alert)
 })
 
 test_that("works with boost_tree() and the h2o_gbm engine", {
@@ -146,9 +146,7 @@ test_that("works with linear_reg() and the glm engine", {
 
   expect_type(tidypredict_fit(model), "language")
 
-  expect_snapshot(
-    tidypredict_test(model, df = mtcars)
-  )
+  expect_false(tidypredict_test(model, df = mtcars)$alert)
 })
 
 test_that("works with logistic_reg() and the LiblineaR engine", {
@@ -267,7 +265,7 @@ test_that("works with decision_tree() and the rpart engine", {
 
   expect_type(tidypredict_fit(reg), "language")
   expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
-  expect_snapshot(tidypredict_test(reg, df = mtcars))
+  expect_false(tidypredict_test(reg, df = mtcars)$alert)
 
   # Classification
   df <- mtcars
@@ -301,7 +299,7 @@ test_that("works with rand_forest() and the partykit engine", {
 
   expect_type(tidypredict_fit(reg), "language")
   expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
-  expect_snapshot(tidypredict_test(reg, df = mtcars))
+  expect_false(tidypredict_test(reg, df = mtcars)$alert)
 
   # Classification is not supported
   cls <- parsnip::fit(
@@ -366,9 +364,7 @@ test_that("works with linear_reg() and the quantreg engine", {
 
   expect_type(tidypredict_fit(model), "language")
 
-  expect_snapshot(
-    tidypredict_test(model, df = mtcars)
-  )
+  expect_false(tidypredict_test(model, df = mtcars)$alert)
 })
 
 test_that("works with rule_fit() and the xrf engine", {
@@ -418,5 +414,155 @@ test_that("works with rule_fit() and the xrf engine", {
   expect_equal(
     rlang::eval_tidy(tidypredict_fit(cls), cls_df),
     predict(cls, cls_df, type = "prob")$.pred_yes
+  )
+})
+
+test_that("mlp is handled with parsnip", {
+  skip_if_not_installed("nnet")
+  skip_if_not_installed("parsnip")
+
+  set.seed(100)
+  reg <- parsnip::fit(
+    parsnip::mlp(mode = "regression", hidden_units = 3, epochs = 100),
+    mpg ~ wt + hp,
+    data = mtcars
+  )
+
+  expect_type(tidypredict_fit(reg), "language")
+  expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(reg), mtcars),
+    predict(reg, mtcars)$.pred
+  )
+
+  set.seed(100)
+  cls <- parsnip::fit(
+    parsnip::mlp(mode = "classification", hidden_units = 3, epochs = 100),
+    Species ~ .,
+    data = iris
+  )
+
+  tf <- tidypredict_fit(cls)
+  expect_named(tf, levels(iris$Species))
+
+  # parsnip runs the probabilities of `predict.nnet()` through a second softmax
+  probs <- sapply(tf, \(f) rlang::eval_tidy(f, iris))
+  expect_equal(
+    unname(probs),
+    unname(as.matrix(predict(cls, iris, type = "prob")))
+  )
+})
+
+test_that("bart is handled with parsnip", {
+  skip_if_not_installed("dbarts")
+  skip_if_not_installed("parsnip")
+
+  set.seed(100)
+  df <- data.frame(x1 = rnorm(60), x2 = rnorm(60))
+  df$y <- 2 * df$x1 - df$x2 + rnorm(60)
+
+  reg <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::bart(mode = "regression", trees = 3),
+      "dbarts",
+      ndpost = 4,
+      nskip = 10,
+      nchain = 1,
+      nthread = 1,
+      verbose = FALSE
+    ),
+    y ~ .,
+    data = df
+  )
+
+  expect_type(tidypredict_fit(reg), "language")
+  expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
+
+  # `predict()` draws from the posterior predictive distribution, which adds
+  # residual noise, so the comparison is against the expected value
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(reg), df),
+    colMeans(predict(reg$fit, df, type = "ev"))
+  )
+
+  cls_df <- df
+  cls_df$y <- factor(ifelse(df$y > 0, "yes", "no"))
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::bart(mode = "classification", trees = 3),
+      "dbarts",
+      ndpost = 4,
+      nskip = 10,
+      nchain = 1,
+      nthread = 1,
+      verbose = FALSE
+    ),
+    y ~ .,
+    data = cls_df
+  )
+
+  expect_snapshot(error = TRUE, tidypredict_fit(cls))
+})
+
+test_that("bag_tree is handled with parsnip", {
+  skip_if_not_installed("baguette")
+  skip_if_not_installed("parsnip")
+
+  set.seed(100)
+  reg <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::bag_tree(mode = "regression"),
+      "rpart",
+      times = 3
+    ),
+    mpg ~ wt + cyl + disp,
+    data = mtcars
+  )
+
+  expect_type(tidypredict_fit(reg), "language")
+  expect_s3_class(tidypredict_sql(reg, dbplyr::simulate_dbi()), "sql")
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(reg), mtcars),
+    predict(reg, mtcars)$.pred
+  )
+
+  set.seed(100)
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::bag_tree(mode = "classification"),
+      "rpart",
+      times = 3
+    ),
+    Species ~ .,
+    data = iris
+  )
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(cls), iris),
+    as.character(predict(cls, iris)$.pred_class)
+  )
+})
+
+test_that("bag_tree is handled with parsnip and the C5.0 engine", {
+  skip_if_not_installed("baguette")
+  skip_if_not_installed("parsnip")
+  skip_if_not_installed("C50")
+
+  set.seed(100)
+  cls <- parsnip::fit(
+    parsnip::set_engine(
+      parsnip::bag_tree(mode = "classification"),
+      "C5.0",
+      times = 3
+    ),
+    Species ~ .,
+    data = iris
+  )
+
+  expect_type(tidypredict_fit(cls), "language")
+  expect_s3_class(tidypredict_sql(cls, dbplyr::simulate_dbi()), "sql")
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(cls), iris),
+    as.character(predict(cls, iris)$.pred_class)
   )
 })

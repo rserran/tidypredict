@@ -125,7 +125,7 @@ test_that("model can be saved and re-loaded", {
   model <- MASS::lda(Species ~ ., data = iris)
 
   pm <- parse_model(model)
-  mp <- tempfile(fileext = ".yml")
+  mp <- withr::local_tempfile(fileext = ".yml")
   yaml::write_yaml(pm, mp)
   pm <- as_parsed_model(yaml::read_yaml(mp))
 
@@ -141,6 +141,53 @@ test_that("tidypredict_test errors for lda models", {
   model <- MASS::lda(Species ~ ., data = iris)
 
   expect_snapshot(error = TRUE, tidypredict_test(model, iris))
+})
+
+test_that("a row far outside the training range matches predict() (#299)", {
+  skip_if_not_installed("MASS")
+  # The class scores of such a row are large enough that `exp()` overflows,
+  # which used to make every probability `NaN`.
+  model <- MASS::lda(Species ~ ., data = iris)
+
+  far <- iris[rep(1, 3), ]
+  far$Sepal.Length <- c(100, 1e3, -500)
+  far$Sepal.Width <- c(100, -1e3, 500)
+  far$Petal.Length <- c(100, 1e3, -500)
+  far$Petal.Width <- c(100, -1e3, 500)
+
+  probs <- sapply(tidypredict_fit(model), \(f) rlang::eval_tidy(f, far))
+
+  expect_false(anyNA(probs))
+  expect_equal(unname(probs), unname(predict(model, far)$posterior))
+})
+
+test_that("an ordered factor is rejected (#343)", {
+  skip_if_not_installed("MASS")
+  # R fits an ordered factor with `contr.poly`, whose columns are named `.L`,
+  # `.Q` and `.C` rather than after the levels. `lda()` records no contrasts,
+  # so the level recovered from those names used to reach the formula, where it
+  # matched no row and the term was silently dropped.
+  df <- transform(
+    mtcars,
+    cyl = factor(cyl),
+    gear = factor(gear, ordered = TRUE)
+  )
+
+  expect_snapshot(
+    tidypredict_fit(MASS::lda(cyl ~ mpg + gear + disp, data = df)),
+    error = TRUE
+  )
+})
+
+test_that("a global non-treatment contrast is rejected (#343)", {
+  skip_if_not_installed("MASS")
+  withr::local_options(contrasts = c("contr.sum", "contr.poly"))
+  df <- transform(mtcars, cyl = factor(cyl), gear = factor(gear))
+
+  expect_snapshot(
+    tidypredict_fit(MASS::lda(cyl ~ mpg + gear + disp, data = df)),
+    error = TRUE
+  )
 })
 
 test_that("inline functions in the formula are rejected", {

@@ -386,6 +386,102 @@ test_that("mixed default_left values in same tree are handled correctly", {
   expect_equal(tree_result[[3]]$path[[1]]$missing, FALSE)
 })
 
+lgb_missing_data <- function(na, zeros, seed = 1) {
+  set.seed(seed)
+  n <- 400
+  d <- data.frame(x1 = runif(n, -10, -5), x2 = rnorm(n), x3 = rnorm(n))
+  if (na) {
+    d$x1[sample(n, 60)] <- NA
+  }
+  if (zeros) {
+    d$x2[sample(n, 60)] <- 0
+  }
+  d$y <- 2 * ifelse(is.na(d$x1), 0, d$x1) + d$x2 - d$x3 + rnorm(n)
+  d
+}
+
+# Prediction data that exercises missing values, exact zeros, and both at once.
+lgb_missing_newdata <- function(seed = 99) {
+  set.seed(seed)
+  n <- 200
+  d <- data.frame(x1 = runif(n, -10, -5), x2 = rnorm(n), x3 = rnorm(n))
+  d$x1[1:50] <- NA
+  d$x2[51:100] <- 0
+  d$x1[101:120] <- 0
+  d
+}
+
+lgb_missing_model <- function(train, params) {
+  cols <- c("x1", "x2", "x3")
+  params <- c(
+    params,
+    list(objective = "regression", num_leaves = 8L, verbose = -1L)
+  )
+  dtrain <- lightgbm::lgb.Dataset(
+    as.matrix(train[cols]),
+    label = train$y,
+    params = params
+  )
+  lightgbm::lgb.train(params = params, data = dtrain, nrounds = 6L)
+}
+
+test_that("missing values follow missing_type, not default_left (#288)", {
+  skip_if_not_installed("lightgbm")
+  # `Tree::NumericalDecision` consults `default_left` only when the node's
+  # `missing_type` is `NaN` or `Zero`. A feature with no missing value in the
+  # training data gets `None`, where a missing value is coerced to `0` and
+  # compared against the threshold like any other.
+  cases <- list(
+    list(na = TRUE, zeros = FALSE, params = list()),
+    list(na = FALSE, zeros = FALSE, params = list()),
+    list(na = TRUE, zeros = FALSE, params = list(use_missing = FALSE))
+  )
+
+  newdata <- lgb_missing_newdata()
+  mat <- as.matrix(newdata[c("x1", "x2", "x3")])
+
+  for (case in cases) {
+    model <- lgb_missing_model(
+      lgb_missing_data(case$na, case$zeros),
+      case$params
+    )
+    native <- predict(model, mat)
+
+    expect_equal(rlang::eval_tidy(tidypredict_fit(model), newdata), native)
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(parse_model(model)), newdata),
+      native
+    )
+  }
+})
+
+test_that("zero_as_missing routes exact zeros as missing (#288)", {
+  skip_if_not_installed("lightgbm")
+  # Every node of such a model gets `missing_type = "Zero"`, where an exact
+  # zero takes the `default_left` side along with a missing value. This is
+  # wrong on the training data itself, not only on new zeros.
+  newdata <- lgb_missing_newdata()
+  mat <- as.matrix(newdata[c("x1", "x2", "x3")])
+
+  for (na in c(FALSE, TRUE)) {
+    train <- lgb_missing_data(na, zeros = TRUE)
+    model <- lgb_missing_model(train, list(zero_as_missing = TRUE))
+    native <- predict(model, mat)
+
+    expect_equal(rlang::eval_tidy(tidypredict_fit(model), newdata), native)
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(parse_model(model)), newdata),
+      native
+    )
+
+    # The training rows, which contain the zeros the model was fit on
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(model), train),
+      predict(model, as.matrix(train[c("x1", "x2", "x3")]))
+    )
+  }
+})
+
 test_that("model with missing values produces valid parse", {
   skip_if_not_installed("lightgbm")
 
@@ -1312,7 +1408,10 @@ test_that("RF boosting in from_parsed averages trees", {
   expect_match(formula_str, "/2")
 })
 
-test_that("from_parsed handles set type with missing", {
+test_that("a categorical split sends a missing value right (#288)", {
+  # `Tree::CategoricalDecision` sends a missing value right whatever
+  # `default_left` says, so a `missing = TRUE` recorded by an older parse is
+  # not honoured.
   pm <- list()
   pm$general$model <- "lgb.Booster"
   pm$general$type <- "lgb"
@@ -1346,9 +1445,10 @@ test_that("from_parsed handles set type with missing", {
 
   fit_formula <- tidypredict_fit(pm)
 
-  formula_str <- deparse(fit_formula)
-  expect_match(formula_str, "%in%")
-  expect_match(formula_str, "is.na")
+  expect_equal(
+    rlang::eval_tidy(fit_formula, data.frame(cat_feat = c(0L, 5L, NA))),
+    c(10, 20, 20)
+  )
 })
 
 test_that("from_parsed handles set type without missing", {
@@ -1426,7 +1526,10 @@ test_that("from_parsed handles conditional without missing", {
 
   formula_str <- deparse(fit_formula)
   expect_match(formula_str, "<=")
-  expect_no_match(formula_str, "is.na")
+  expect_equal(
+    rlang::eval_tidy(fit_formula, data.frame(x = c(1, 9, NA))),
+    c(10, 20, 20)
+  )
 })
 
 test_that("build_lgb_nested_condition errors on unknown type", {
@@ -1752,7 +1855,7 @@ test_that("categorical with many categories works", {
   expect_equal(unname(tidy_preds), unname(native_preds), tolerance = 1e-10)
 })
 
-test_that("parsed model can be saved and loaded via YAML", {
+test_that("model can be saved and re-loaded", {
   skip_if_not_installed("lightgbm")
   skip_if_not_installed("yaml")
 
@@ -1778,22 +1881,23 @@ test_that("parsed model can be saved and loaded via YAML", {
   )
 
   pm <- parse_model(model)
-  mp <- tempfile(fileext = ".yml")
+  mp <- withr::local_tempfile(fileext = ".yml")
   yaml::write_yaml(pm, mp)
   l <- yaml::read_yaml(mp)
   pm_loaded <- as_parsed_model(l)
 
-  fit_original <- tidypredict_fit(pm)
   fit_loaded <- tidypredict_fit(pm_loaded)
 
   test_df <- as.data.frame(X)
-  preds_original <- dplyr::mutate(test_df, pred = !!fit_original)$pred
   preds_loaded <- dplyr::mutate(test_df, pred = !!fit_loaded)$pred
 
-  expect_equal(preds_original, preds_loaded, tolerance = 1e-6)
+  # Against lightgbm's own predictions, not against the un-serialized parsed
+  # model, so that a round-trip which loses information cannot agree with an
+  # equally broken original.
+  expect_equal(preds_loaded, unname(predict(model, X)), tolerance = 1e-6)
 })
 
-test_that("parsed multiclass model can be saved and loaded via YAML", {
+test_that("multiclass model can be saved and re-loaded", {
   skip_if_not_installed("lightgbm")
   skip_if_not_installed("yaml")
 
@@ -1817,7 +1921,7 @@ test_that("parsed multiclass model can be saved and loaded via YAML", {
   )
 
   pm <- parse_model(model)
-  mp <- tempfile(fileext = ".yml")
+  mp <- withr::local_tempfile(fileext = ".yml")
   yaml::write_yaml(pm, mp)
   l <- yaml::read_yaml(mp)
   pm_loaded <- as_parsed_model(l)
@@ -1891,6 +1995,41 @@ test_that("tidypredict_test works for binary classification model", {
 
   expect_s3_class(result, "tidypredict_test")
   expect_false(result$alert)
+})
+
+test_that("parsed model produces same predictions as the fitted model", {
+  skip_if_not_installed("lightgbm")
+
+  model <- make_lgb_model()
+  pm <- as_parsed_model(parse_model(model))
+
+  direct <- rlang::eval_tidy(tidypredict_fit(model), mtcars)
+  parsed <- rlang::eval_tidy(tidypredict_fit(pm), mtcars)
+
+  expect_equal(parsed, direct)
+})
+
+test_that("parsed model predictions match native predict", {
+  skip_if_not_installed("lightgbm")
+
+  model <- make_lgb_model()
+  X <- data.matrix(mtcars[, c("mpg", "cyl", "disp")])
+  pm <- as_parsed_model(parse_model(model))
+
+  parsed <- rlang::eval_tidy(tidypredict_fit(pm), mtcars)
+
+  expect_equal(parsed, unname(predict(model, X)), tolerance = 1e-6)
+})
+
+test_that("tidypredict_test flags differences in both directions", {
+  skip_if_not_installed("lightgbm")
+
+  model <- make_lgb_model()
+  X <- data.matrix(mtcars[, c("mpg", "cyl", "disp")])
+
+  result <- tidypredict_test(model, xg_df = X, threshold = 1e-7)
+
+  expect_threshold_consistent(result, 1e-7)
 })
 
 test_that("tidypredict_test errors for multiclass model", {

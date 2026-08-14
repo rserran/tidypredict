@@ -1,11 +1,5 @@
 # Predict ---------------------------------------
 
-#' @export
-tidypredict_fit.lda <- function(model) {
-  parsedmodel <- parse_model(model)
-  build_fit_formula_multinom(parsedmodel)
-}
-
 # Parse model --------------------------------------
 
 #' @export
@@ -36,37 +30,33 @@ parse_model.lda <- function(model) {
 
   labels <- rownames(coefs)
   class_terms <- lapply(seq_along(classes), function(i) {
-    lda_terms(
+    build_terms(
       c(intercepts[[i]], coefs[, i]),
       c("(Intercept)", labels),
       vars
     )
   })
 
-  pm <- list()
-  pm$general$model <- "lda"
-  pm$general$version <- 2
-  pm$general$type <- "multiclass_regression"
-  pm$general$family <- "multinomial"
-  pm$classes <- classes
-  pm$class_terms <- class_terms
-
-  as_parsed_model(pm)
+  new_multiclass_parsed_model(
+    "lda",
+    classes,
+    class_terms
+  )
 }
 
-lda_terms <- function(values, labels, vars) {
-  map2(as.numeric(values), labels, function(value, label) {
-    list(
-      label = label,
-      coef = value,
-      is_intercept = as.integer(label == "(Intercept)"),
-      fields = parse_label_lm(label, vars)
-    )
-  })
-}
 
 #' @export
-acceptable_formula.lda <- function(model) acceptable_lm(model)
+acceptable_formula.lda <- function(model) {
+  # `lda()` records no `contrasts` for `acceptable_lm()` to read, so they are
+  # read back off the names it gave the columns each factor expanded into.
+  acceptable_contrasts(
+    columns = colnames(model$means),
+    vars = names(attr(model$terms, "dataClasses")),
+    xlevels = model$xlevels
+  )
+
+  acceptable_lm(model)
+}
 
 # Test ---------------------------------------------
 
@@ -79,10 +69,5 @@ tidypredict_test.lda <- function(
   max_rows = NULL,
   xg_df = NULL
 ) {
-  cli::cli_abort(
-    c(
-      "{.fn tidypredict_test} does not support {.fn MASS::lda} models.",
-      "i" = "Use {.fn tidypredict_fit} directly for multiclass predictions."
-    )
-  )
+  abort_test_unsupported("{.fn MASS::lda} models")
 }

@@ -14,10 +14,66 @@ template:
 figures:
   fig.width: 8
   fig.height: 5.75
+
+articles:
+- title: Get started
+  navbar: ~
+  contents:
+  - models
+  - save
+  - sql
+
+- title: Supported models
+  desc: One article per model family. See `vignette("models")` for the full list.
+  contents:
+  - lm
+  - glm
+  - glmnet
+  - multinom
+  - fda
+  - lda
+  - qda
+  - sda
+  - sparsediscrim
+  - naivebayes
+  - mixOmics
+  - nnet
+  - ranger
+  - rf
+  - partykit
+  - aorsf
+  - rpart
+  - C5.0
+  - bart
+  - bagging
+  - mars
+  - cubist
+  - xgboost
+  - lightgbm
+  - catboost
+  - h2o
+  - nullmodel
+
+- title: How it works
+  desc: The internals, and how to talk to tidypredict from outside R.
+  contents:
+  - tree-internals
+  - float-precision
+  - non-r
+
+- title: Parsed model specs
+  desc: The on-disk format that `parse_model()` writes and `tidypredict_fit()` reads.
+  contents:
+  - regression
+  - tree
+
 navbar:
   left:
   - text: Model list
     menu:
+    - text: All supported models
+      href: articles/models.html
+    - text: '-------'
     - text: Linear Regression - lm()
       href: articles/lm.html
     - text: Generalized Regression - glm()
@@ -30,12 +86,18 @@ navbar:
       href: articles/fda.html
     - text: Linear Discriminant Analysis - lda()
       href: articles/lda.html
+    - text: Quadratic Discriminant Analysis - qda()
+      href: articles/qda.html
     - text: Shrinkage Discriminant Analysis - sda()
       href: articles/sda.html
     - text: Regularized Discriminant Analysis - sparsediscrim
       href: articles/sparsediscrim.html
+    - text: Naive Bayes - NaiveBayes()
+      href: articles/naivebayes.html
     - text: Partial Least Squares - mixOmics
       href: articles/mixOmics.html
+    - text: Neural Network - nnet()
+      href: articles/nnet.html
     - text: Random Forest - Ranger - ranger()
       href: articles/ranger.html
     - text: Random Forest - randomForest()
@@ -48,6 +110,10 @@ navbar:
       href: articles/rpart.html
     - text: Decision Tree - C5.0()
       href: articles/C5.0.html
+    - text: BART - bart()
+      href: articles/bart.html
+    - text: Bagged Trees - bagger()
+      href: articles/bagging.html
     - text: MARS - earth()
       href: articles/mars.html
     - text: Cubist - cubist()

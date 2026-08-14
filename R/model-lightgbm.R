@@ -9,6 +9,10 @@ lgb_identity_objectives <- c(
   "quantile",
   "mape"
 )
+# How close to zero LightGBM's `IsZero()` counts as zero, from
+# `kZeroAsMissingValueRange`.
+lgb_zero_threshold <- 1e-35
+
 lgb_exp_objectives <- c("poisson", "gamma", "tweedie")
 lgb_sigmoid_objectives <- c("binary", "cross_entropy")
 lgb_multiclass_objectives <- c("multiclass", "multiclassova")
@@ -161,6 +165,7 @@ parse_lgb_linear_leaves <- function(
 get_lgb_trees <- function(model, linear_info = list()) {
   trees_df <- lightgbm::lgb.model.dt.tree(model)
   trees_df <- as.data.frame(trees_df)
+  trees_df <- add_lgb_missing_type(trees_df, model)
 
   # Check for unsupported decision types
   decision_types <- unique(trees_df$decision_type[
@@ -188,6 +193,69 @@ get_lgb_trees <- function(model, linear_info = list()) {
     tree_linear <- linear_info[[tree_idx]]
     get_lgb_tree(trees_split[[tree_idx]], tree_linear)
   })
+}
+
+# Add the `missing_type` of each split node to `trees_df`.
+#
+# `lgb.model.dt.tree()` does not report it, and it decides how a missing value
+# is routed, so it has to be read from the JSON dump and joined on by tree and
+# split index.
+add_lgb_missing_type <- function(trees_df, model) {
+  dump <- jsonlite::fromJSON(model$dump_model(), simplifyVector = FALSE)
+
+  keys <- character(0)
+  types <- character(0)
+  collect <- function(node, tree_index) {
+    if (is.null(node$split_index)) {
+      return(invisible())
+    }
+    keys <<- c(keys, paste(tree_index, node$split_index))
+    types <<- c(types, node$missing_type %||% "None")
+    collect(node$left_child, tree_index)
+    collect(node$right_child, tree_index)
+  }
+  for (tree in dump$tree_info) {
+    collect(tree$tree_structure, tree$tree_index)
+  }
+
+  lookup <- stats::setNames(types, keys)
+  trees_df$missing_type <- unname(
+    lookup[paste(trees_df$tree_index, trees_df$split_index)]
+  )
+  trees_df
+}
+
+# The left branch of a numerical split, `col <= val`, with the values
+# `missing_type` sends this way folded in.
+#
+# `Tree::NumericalDecision` consults `default_left` only when the node's
+# `missing_type` is `NaN` or `Zero`. Under `None`, which is what a feature with
+# no missing value in the training data gets, a missing value is coerced to `0`
+# and compared against the threshold like any other, so it goes wherever `0`
+# goes. `Zero` treats an exact zero as missing as well.
+lgb_numeric_left <- function(col, val, missing_type, default_left) {
+  col <- rlang::sym(col)
+  val <- as.numeric(val)
+  missing_type <- missing_type %||% "NaN"
+
+  if (missing_type == "None") {
+    if (0 <= val) {
+      return(expr(is.na(!!col) | !!col <= !!val))
+    }
+    return(expr(!is.na(!!col) & !!col <= !!val))
+  }
+
+  is_missing <- if (missing_type == "Zero") {
+    expr(is.na(!!col) | abs(!!col) <= !!lgb_zero_threshold)
+  } else {
+    expr(is.na(!!col))
+  }
+
+  if (default_left) {
+    expr(!!is_missing | !!col <= !!val)
+  } else {
+    expr(!(!!is_missing) & !!col <= !!val)
+  }
 }
 
 get_lgb_children_map <- function(tree_df) {
@@ -218,6 +286,7 @@ get_lgb_tree <- function(tree_df, linear_info = NULL) {
   default_left <- tree_df$default_left == "TRUE"
   split_feature <- tree_df$split_feature
   threshold <- tree_df$threshold
+  missing_type <- tree_df$missing_type
 
   # Build split_index to row lookup (avoid repeated which() calls)
   max_split_idx <- suppressWarnings(max(split_index, na.rm = TRUE))
@@ -260,7 +329,8 @@ get_lgb_tree <- function(tree_df, linear_info = NULL) {
           default_left,
           split_feature,
           threshold,
-          children_map
+          children_map,
+          missing_type
         )
       )
     } else {
@@ -276,7 +346,8 @@ get_lgb_tree <- function(tree_df, linear_info = NULL) {
           default_left,
           split_feature,
           threshold,
-          children_map
+          children_map,
+          missing_type
         )
       )
     }
@@ -293,7 +364,8 @@ get_lgb_path_fast <- function(
   default_left,
   split_feature,
   threshold,
-  children_map
+  children_map,
+  missing_type
 ) {
   path <- list()
   current_row <- leaf_row
@@ -326,26 +398,24 @@ get_lgb_path_fast <- function(
         col = split_feature[parent_row],
         val = threshold[parent_row],
         op = op,
-        missing = missing_with_us
+        missing = missing_with_us,
+        missing_type = missing_type[parent_row],
+        default_left = def_left
       )
     } else if (dec_type == "==") {
       # Categorical split: threshold is "0||1||3" format
       category_set <- parse_lgb_categorical_threshold(threshold[parent_row])
 
-      if (is_left_child) {
-        op <- "in"
-        missing_with_us <- def_left
-      } else {
-        op <- "not-in"
-        missing_with_us <- !def_left
-      }
+      # `Tree::CategoricalDecision` sends a missing value right whatever
+      # `default_left` says, so it is never carried with the left branch.
+      op <- if (is_left_child) "in" else "not-in"
 
       condition <- list(
         type = "set",
         col = split_feature[parent_row],
         vals = category_set,
         op = op,
-        missing = missing_with_us
+        missing = FALSE
       )
     }
 
@@ -368,7 +438,7 @@ parse_lgb_categorical_threshold <- function(threshold) {
 
 # Helper for sigmoid transformation
 lgb_sigmoid <- function(f) {
-  expr(1 / (1 + exp(-(!!f))))
+  expr_logistic(f)
 }
 
 # Apply multiclass transformation to tree expressions
@@ -388,12 +458,7 @@ apply_lgb_multiclass_transformation <- function(trees, num_class, objective) {
 
   # Apply transformation based on objective
   if (objective == "multiclass") {
-    # Softmax: exp(raw_i) / sum(exp(raw_j))
-    exp_raws <- map(raw_scores, ~ expr(exp(!!.x)))
-    denom <- reduce_addition(exp_raws)
-    result <- map(seq_len(num_class), function(i) {
-      expr(exp(!!raw_scores[[i]]) / (!!denom))
-    })
+    result <- expr_softmax(raw_scores)
   } else if (objective == "multiclassova") {
     # One-vs-all: sigmoid for each class independently
     result <- map(raw_scores, lgb_sigmoid)
@@ -430,11 +495,7 @@ build_lgb_linear_prediction <- function(linear) {
     feat <- as.name(fn)
     expr(is.na(!!feat))
   })
-  any_na <- if (length(na_checks) == 1) {
-    na_checks[[1]]
-  } else {
-    reduce_or(na_checks)
-  }
+  any_na <- reduce_or(na_checks)
 
   # If any feature is NA, use fallback; otherwise use linear formula
   expr(ifelse(!!any_na, !!fallback, !!linear_formula))
@@ -471,59 +532,30 @@ tidypredict_fit.lgb.Booster <- function(model, ...) {
 
 # Nested formula builder for lightgbm (from model directly)
 build_fit_formula_lgb_nested <- function(parsedmodel, model) {
-  n_trees <- length(parsedmodel$trees)
-
-  if (n_trees == 0) {
-    cli::cli_abort("Model has no trees.")
-  }
-
-  objective <- parsedmodel$general$params$objective %||% "regression"
-
-  if (!objective %in% lgb_supported_objectives) {
-    cli::cli_abort(
-      c(
-        "Unsupported objective: {.val {objective}}.",
-        "i" = "Supported objectives: {.val {lgb_supported_objectives}}."
-      )
-    )
-  }
-
-  if (objective %in% lgb_multiclass_objectives) {
-    return(build_fit_formula_lgb_multiclass_nested(
-      parsedmodel,
-      model,
-      objective
-    ))
-  }
-
-  # Extract nested trees (pass feature_names to avoid redundant JSON parsing)
-  trees <- extract_lgb_trees_nested(model, parsedmodel$general$feature_names)
-
-  # RF boosting averages trees instead of summing
-  boosting <- parsedmodel$general$params$boosting
-  if (!is.null(boosting) && boosting == "rf") {
-    f <- reduce_addition(trees)
-    f <- expr_division(f, n_trees)
-  } else {
-    f <- reduce_addition(trees)
-  }
-
-  apply_lgb_objective(f, objective, parsedmodel$general$params)
-}
-
-build_fit_formula_lgb_multiclass_nested <- function(
-  parsedmodel,
-  model,
-  objective
-) {
-  num_class <- parsedmodel$general$num_class
-
-  trees <- extract_lgb_trees_nested(model, parsedmodel$general$feature_names)
-  apply_lgb_multiclass_transformation(trees, num_class, objective)
+  assemble_lgb_formula(parsedmodel, function() {
+    # Pass feature_names to avoid redundant JSON parsing
+    extract_lgb_trees_nested(model, parsedmodel$general$feature_names)
+  })
 }
 
 # Nested formula builder for lightgbm (from parsed model, version 3)
 build_fit_formula_lgb_from_parsed <- function(parsedmodel) {
+  assemble_lgb_formula(parsedmodel, function() {
+    map(parsedmodel$trees, function(tree) {
+      build_nested_from_flat_paths(
+        tree,
+        build_lgb_nested_condition,
+        lgb_is_left_op
+      )
+    })
+  })
+}
+
+# Only the source of the trees differs between a fitted model and a parsed one,
+# so `build_trees` supplies them and everything else is shared. It is a function
+# rather than a value so that the objective is validated before the trees are
+# built.
+assemble_lgb_formula <- function(parsedmodel, build_trees) {
   n_trees <- length(parsedmodel$trees)
 
   if (n_trees == 0) {
@@ -541,63 +573,49 @@ build_fit_formula_lgb_from_parsed <- function(parsedmodel) {
     )
   }
 
+  trees <- build_trees()
+
   if (objective %in% lgb_multiclass_objectives) {
-    return(build_fit_formula_lgb_multiclass_from_parsed(parsedmodel, objective))
+    num_class <- parsedmodel$general$num_class
+    if (is.null(num_class) || num_class < 2) {
+      cli::cli_abort("Multiclass model must have num_class >= 2.")
+    }
+    return(apply_lgb_multiclass_transformation(trees, num_class, objective))
   }
 
-  # Build nested trees from flat paths
-  trees <- map(parsedmodel$trees, function(tree) {
-    build_nested_from_flat_paths(tree, build_lgb_nested_condition)
-  })
+  f <- reduce_addition(trees)
 
   # RF boosting averages trees instead of summing
   boosting <- parsedmodel$general$params$boosting
   if (!is.null(boosting) && boosting == "rf") {
-    f <- reduce_addition(trees)
     f <- expr_division(f, n_trees)
-  } else {
-    f <- reduce_addition(trees)
   }
 
   apply_lgb_objective(f, objective, parsedmodel$general$params)
 }
 
-build_fit_formula_lgb_multiclass_from_parsed <- function(
-  parsedmodel,
-  objective
-) {
-  num_class <- parsedmodel$general$num_class
-  if (is.null(num_class) || num_class < 2) {
-    cli::cli_abort("Multiclass model must have num_class >= 2.")
-  }
-
-  trees <- map(parsedmodel$trees, function(tree) {
-    build_nested_from_flat_paths(tree, build_lgb_nested_condition)
-  })
-  apply_lgb_multiclass_transformation(trees, num_class, objective)
+# Build condition for lightgbm nested generation from path element
+lgb_is_left_op <- function(op) {
+  op %in% c("less-equal", "in")
 }
 
-# Build condition for lightgbm nested generation from path element
 build_lgb_nested_condition <- function(path_elem) {
   col <- rlang::sym(path_elem$col)
   missing <- path_elem$missing %||% FALSE
 
   if (path_elem$type == "conditional") {
-    val <- as.numeric(path_elem$val)
-    # For nested generation, we only build the left condition (less-equal)
-    if (missing) {
-      expr(!!col <= !!val | is.na(!!col))
-    } else {
-      expr(!!col <= !!val)
-    }
+    # For nested generation, we only build the left condition (less-equal), so
+    # a model parsed before `missing_type` was recorded carries the same
+    # information in `missing`.
+    lgb_numeric_left(
+      path_elem$col,
+      path_elem$val,
+      path_elem$missing_type,
+      path_elem$default_left %||% missing
+    )
   } else if (path_elem$type == "set") {
     vals <- unlist(path_elem$vals)
-    # For nested generation, we only build the left condition (in)
-    if (missing) {
-      expr(!!col %in% !!vals | is.na(!!col))
-    } else {
-      expr(!!col %in% !!vals)
-    }
+    expr(!!col %in% !!vals)
   } else {
     cli::cli_abort("Unknown path element type: {.val {path_elem$type}}")
   }
@@ -612,6 +630,7 @@ extract_lgb_trees_nested <- function(
 ) {
   trees_df <- lightgbm::lgb.model.dt.tree(model)
   trees_df <- as.data.frame(trees_df)
+  trees_df <- add_lgb_missing_type(trees_df, model)
 
   # Extract linear tree info (only if not provided)
   if (is.null(feature_names)) {
@@ -714,21 +733,19 @@ build_nested_lgb_node <- function(
 
   if (decision_type == "<=") {
     # Numerical split: LEFT = (<= threshold), RIGHT = (> threshold)
-    if (default_left) {
-      # Missing goes left
-      condition <- expr(!!col_sym <= !!as.numeric(threshold) | is.na(!!col_sym))
-    } else {
-      # Missing goes right - condition is just <=
-      condition <- expr(!!col_sym <= !!as.numeric(threshold))
-    }
+    condition <- lgb_numeric_left(
+      col,
+      threshold,
+      tree_df$missing_type[[node_row]],
+      default_left
+    )
   } else if (decision_type == "==") {
-    # Categorical split: LEFT = (in set), RIGHT = (not in set)
+    # Categorical split: LEFT = (in set), RIGHT = (not in set).
+    #
+    # `Tree::CategoricalDecision` sends a missing value right whatever
+    # `default_left` says, which `%in%` does too.
     category_set <- parse_lgb_categorical_threshold(threshold)
-    if (default_left) {
-      condition <- expr(!!col_sym %in% !!category_set | is.na(!!col_sym))
-    } else {
-      condition <- expr(!!col_sym %in% !!category_set)
-    }
+    condition <- expr(!!col_sym %in% !!category_set)
   } else {
     # nocov start
     cli::cli_abort(

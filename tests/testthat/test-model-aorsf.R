@@ -80,13 +80,13 @@ test_that("model can be saved and re-loaded", {
   model <- aorsf::orsf(mtcars, mpg ~ wt + cyl + disp, n_tree = 10)
 
   tmp <- withr::local_tempfile(fileext = ".yml")
-  yaml::write_yaml(parse_model(model), tmp)
-  reloaded <- as_parsed_model(yaml::read_yaml(tmp))
+  tidypredict_save(model, tmp)
+  reloaded <- tidypredict_load(tmp)
 
   nd <- new_data()
   base <- as.numeric(predict(model, new_data = nd))
   parsed <- rlang::eval_tidy(tidypredict_fit(reloaded), nd)
-  expect_equal(parsed, base, tolerance = 1e-6)
+  expect_equal(parsed, base)
 })
 
 test_that("classification errors with clear message", {
@@ -110,4 +110,27 @@ test_that("non-numeric predictors error with clear message", {
   model <- aorsf::orsf(d, mpg ~ wt + cyl, n_tree = 5)
 
   expect_snapshot(error = TRUE, tidypredict_fit(model))
+})
+
+test_that("a missing predictor gives NA rather than a confident value (#325)", {
+  skip_if_not_installed("aorsf")
+
+  set.seed(1)
+  model <- aorsf::orsf(mtcars, mpg ~ wt + cyl + disp + hp, n_tree = 20)
+
+  nd <- new_data()
+  nd$wt[1:5] <- NA_real_
+  fit <- rlang::eval_tidy(tidypredict_fit(model), nd)
+
+  # `predict()` refuses the incomplete rows outright, so there is no value to
+  # match; the rows are kept rather than dropped.
+  expect_error(predict(model, new_data = nd), "missing values")
+  expect_length(fit, nrow(nd))
+  expect_equal(is.na(fit), c(rep(TRUE, 5), rep(FALSE, nrow(nd) - 5)))
+
+  # The complete rows are unaffected.
+  expect_equal(
+    fit[-(1:5)],
+    as.numeric(predict(model, new_data = nd[-(1:5), ]))
+  )
 })

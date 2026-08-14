@@ -42,6 +42,77 @@ fun_calls <- function(f) {
   }
 }
 
+# Abort unless every column a factor expanded into is named after one of its
+# levels.
+#
+# That is what the treatment contrast does, and what the parsers rely on when
+# they recover a level from a column name. `contr.poly`, which R gives an
+# ordered factor by default, names the columns `.L`, `.Q` and `.C` instead, and
+# `contr.sum` numbers them, so a level recovered from either matches no row.
+#
+# `acceptable_lm()` reads the contrasts off the model instead, which is more
+# direct. This is for the models that do not record them.
+acceptable_contrasts <- function(columns, vars, xlevels) {
+  invalid <- character(0)
+
+  # An interaction names each of the columns it multiplies, separated by `:`,
+  # which is how `parse_label_lm()` takes them apart too.
+  items <- unlist(strsplit(columns, ":", fixed = TRUE))
+
+  for (column in setdiff(items, vars)) {
+    # The longest matching variable wins, as it does in `parse_label_lm()`,
+    # so that a column of `xy` is not read as a level of `x`.
+    matches <- vars[startsWith(column, vars)]
+    if (length(matches) == 0) {
+      next
+    }
+    var <- matches[[which.max(nchar(matches))]]
+
+    level <- substr(column, nchar(var) + 1, nchar(column))
+    if (!level %in% xlevels[[var]]) {
+      invalid <- c(invalid, var)
+    }
+  }
+
+  if (length(invalid) > 0) {
+    invalid <- unique(invalid)
+    cli::cli_abort(
+      "The treatment contrast is the only one supported at this time.
+      Field(s) with an invalid contrast are: {.val {invalid}}.",
+      call. = FALSE
+    )
+  }
+
+  invisible()
+}
+
+# Abort when a predictor is an ordered factor.
+#
+# A weaker check than `acceptable_contrasts()`, for a model that records
+# neither its contrasts nor the levels its factors had, leaving nothing to
+# compare the expanded column names against. R fits an ordered factor with
+# `contr.poly` unless the global `contrasts` option says otherwise, so this
+# catches the case that reaches the parser in practice, at the cost of missing
+# a non-default contrast on an unordered factor.
+acceptable_ordered <- function(model) {
+  classes <- attr(model$terms, "dataClasses")
+  response <- attr(model$terms, "response")
+  if (length(response) == 1 && response > 0) {
+    classes <- classes[-response]
+  }
+
+  ordered <- names(classes)[classes == "ordered"]
+  if (length(ordered) > 0) {
+    cli::cli_abort(
+      "The treatment contrast is the only one supported at this time.
+      Field(s) with an invalid contrast are: {.val {ordered}}.",
+      call. = FALSE
+    )
+  }
+
+  invisible()
+}
+
 acceptable_lm <- function(model) {
   # Check for invalid contrasts
   if (length(model$contrasts)) {

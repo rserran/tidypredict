@@ -212,13 +212,7 @@ set_catboost_categories <- function(parsed_model, model, data) {
     }
 
     categories <- levels(col_data)
-    mapping <- build_catboost_hash_mapping(
-      model,
-      data,
-      feat_name,
-      categories,
-      hash_values
-    )
+    mapping <- build_catboost_hash_mapping(feat_name, categories, hash_values)
     parsed_model$general$cat_features[[i]]$hash_to_category <- mapping
   }
 
@@ -226,130 +220,45 @@ set_catboost_categories <- function(parsed_model, model, data) {
 }
 
 # Hash mapping functions --------------------------------------------------
-# Strategy: Train probe models to discover which hash belongs to which category.
-# CatBoost stores categorical features as hashes internally, but doesn't expose
-# the hash function. We identify mappings by training models where each category
-# has a unique target value.
 
-build_catboost_hash_mapping <- function(
-  model,
-  data,
-  feat_name,
-  categories,
-  hash_values
-) {
-  all_hashes <- get_catboost_all_hashes(feat_name, categories)
-  identified <- identify_catboost_hashes(feat_name, categories)
-  complete_mapping <- fill_catboost_hash_mapping(
-    identified$mapping,
-    identified$hashes,
-    all_hashes,
-    categories
+# Name each of `hash_values`, which is what a saved model records for a
+# categorical feature, with the category it stands for.
+build_catboost_hash_mapping <- function(feat_name, categories, hash_values) {
+  by_hash <- stats::setNames(
+    as.list(categories),
+    as.character(catboost_hash(categories))
   )
-  extract_catboost_hash_mapping(complete_mapping, hash_values)
-}
+  hash_values <- as.character(hash_values)
 
-get_catboost_all_hashes <- function(feat_name, categories) {
-  n_cat <- length(categories)
-  train_data <- make_catboost_probe_data(feat_name, categories, seq_len(n_cat))
-  model <- train_catboost_probe_model(train_data, feat_name, n_cat, depth = 3L)
-  extract_catboost_model_hashes(model)
-}
-
-identify_catboost_hashes <- function(feat_name, categories) {
-  n_cat <- length(categories)
-  mapping <- list()
-  identified_hashes <- character(0)
-
-  for (cat in categories) {
-    target <- ifelse(categories == cat, 100, 0)
-    train_data <- make_catboost_probe_data(feat_name, categories, target)
-    model <- train_catboost_probe_model(
-      train_data,
-      feat_name,
-      n_cat,
-      depth = 1L
+  unknown <- setdiff(hash_values, names(by_hash))
+  if (length(unknown) > 0) {
+    cli::cli_abort(
+      c(
+        "Cannot name {length(unknown)} categor{?y/ies} of {.val {feat_name}}.",
+        "i" = "{.arg data} must have the levels the model was fit on."
+      )
     )
-    probe_hashes <- extract_catboost_model_hashes(model)
-
-    if (length(probe_hashes) == 1) {
-      hash_str <- as.character(probe_hashes)
-      mapping[[hash_str]] <- cat
-      identified_hashes <- c(identified_hashes, hash_str)
-    }
   }
 
-  list(mapping = mapping, hashes = identified_hashes)
+  by_hash[hash_values]
 }
 
-fill_catboost_hash_mapping <- function(
-  mapping,
-  identified_hashes,
-  all_hashes,
-  categories
-) {
-  remaining_cats <- setdiff(categories, unlist(mapping))
-  remaining_hashes <- setdiff(as.character(all_hashes), identified_hashes)
-
-  if (length(remaining_cats) == 1 && length(remaining_hashes) == 1) {
-    mapping[[remaining_hashes]] <- remaining_cats
-  }
-
-  mapping
-}
-
-extract_catboost_hash_mapping <- function(complete_mapping, hash_values) {
-  result <- stats::setNames(
-    rep(NA_character_, length(hash_values)),
-    as.character(hash_values)
+# The 32-bit hash CatBoost stores in place of each of `x`.
+#
+# `catboost.load_pool()` hashes the levels of a factor column with this routine
+# and hands the result to the pool as a double, so what comes back is a hash
+# whose bits have been reinterpreted as a 32-bit float. Reading those bits back
+# as an integer gives the value a saved model records.
+catboost_hash <- function(x) {
+  rlang::check_installed("catboost")
+  hash_strings <- get("CatBoostHashStrings_R", envir = asNamespace("catboost"))
+  bits <- .Call(hash_strings, as.character(x))
+  readBin(
+    writeBin(bits, raw(), size = 4),
+    "integer",
+    n = length(bits),
+    size = 4
   )
-
-  for (hash in hash_values) {
-    hash_str <- as.character(hash)
-    if (hash_str %in% names(complete_mapping)) {
-      result[[hash_str]] <- complete_mapping[[hash_str]]
-    }
-  }
-
-  as.list(result)
-}
-
-make_catboost_probe_data <- function(feat_name, categories, target) {
-  train_data <- data.frame(
-    cat_col = factor(categories, levels = categories),
-    target = target
-  )
-  names(train_data)[1] <- feat_name
-  train_data
-}
-
-train_catboost_probe_model <- function(train_data, feat_name, n_cat, depth) {
-  pool <- catboost_catboost.load_pool(
-    train_data[, feat_name, drop = FALSE],
-    label = train_data$target
-  )
-
-  catboost_catboost.train(
-    pool,
-    params = list(
-      iterations = if (depth == 1L) 10L else 100L,
-      depth = depth,
-      learning_rate = 1.0,
-      loss_function = "RMSE",
-      logging_level = "Silent",
-      allow_writing_files = FALSE,
-      one_hot_max_size = n_cat + 1L,
-      min_data_in_leaf = 1L
-    )
-  )
-}
-
-extract_catboost_model_hashes <- function(model) {
-  tmp_file <- tempfile(fileext = ".json")
-  on.exit(unlink(tmp_file), add = TRUE)
-  catboost_catboost.save_model(model, tmp_file, file_format = "json")
-  model_json <- jsonlite::fromJSON(tmp_file, simplifyVector = FALSE)
-  unlist(model_json$features_info$categorical_features[[1]]$values)
 }
 
 process_catboost_trees <- function(
@@ -527,7 +436,7 @@ make_float_split <- function(split, float_features, op) {
   list(
     type = "conditional",
     col = feature_name,
-    val = split$border,
+    val = f32_split_boundary(split$border, "upper"),
     op = op,
     missing = get_catboost_missing(nan_treatment, op)
   )
@@ -585,7 +494,7 @@ get_catboost_tree <- function(
         type = "conditional",
         col = feature_info$feature_id %||%
           paste0("feature_", feature_info$flat_feature_index),
-        val = split$border,
+        val = f32_split_boundary(split$border, "upper"),
         nan_treatment = feature_info$nan_value_treatment %||% "AsIs",
         is_categorical = FALSE
       )
@@ -697,15 +606,10 @@ apply_catboost_multiclass_transformation <- function(
   raw_scores <- lapply(raw_scores, apply_catboost_scale_bias, parsedmodel)
 
   if (objective == "MultiClass") {
-    # Softmax: exp(raw_i) / sum(exp(raw_j))
-    exp_raws <- map(raw_scores, ~ expr(exp(!!.x)))
-    denom <- reduce_addition(exp_raws)
-    result <- map(seq_len(num_class), function(i) {
-      expr(exp(!!raw_scores[[i]]) / (!!denom))
-    })
+    result <- expr_softmax(raw_scores)
   } else {
     # MultiClassOneVsAll: sigmoid for each class independently
-    result <- map(raw_scores, ~ expr(1 / (1 + exp(-(!!.x)))))
+    result <- map(raw_scores, expr_logistic)
   }
 
   names(result) <- paste0("class_", seq_len(num_class) - 1)
@@ -834,7 +738,7 @@ build_fit_formula_catboost_nested <- function(parsedmodel) {
   f <- apply_catboost_scale_bias(f, parsedmodel)
 
   if (objective %in% catboost_sigmoid_objectives) {
-    f <- expr(1 / (1 + exp(-(!!f))))
+    f <- expr_logistic(f)
   }
 
   f
@@ -935,56 +839,22 @@ build_nested_oblivious_level <- function(
   expr(case_when(!!condition ~ !!left_subtree, .default = !!right_subtree))
 }
 
-# Build nested case_when for non-oblivious tree
-build_nested_catboost_nonoblivious_tree <- function(tree, cat_mapping) {
-  # For non-oblivious trees, we need to reconstruct the tree structure
-  # from the flat list of (prediction, path) pairs
-
-  # Single leaf (stump) - reachable with depth=0
-  if (length(tree) == 1 && length(tree[[1]]$path) == 0) {
-    return(tree[[1]]$prediction)
-  }
-
-  # Build recursively from paths
-  build_nested_nonoblivious_node(tree, cat_mapping, path_depth = 1)
+# Non-oblivious trees are stored as a flat list of (prediction, path) pairs, the
+# same shape the xgboost and lightgbm parsed models use, so the shared builder
+# reconstructs them. It also carries guards this file did not have, for empty
+# partitions and for paths that end before the current depth.
+catboost_is_left_op <- function(op) {
+  op %in% c("less-equal", "equal")
 }
 
-build_nested_nonoblivious_node <- function(leaves, cat_mapping, path_depth) {
-  if (length(leaves) == 1) {
-    # Single leaf - return prediction
-    return(leaves[[1]]$prediction)
-  }
-
-  # Get condition from first leaf
-  # Note: all grouped leaves have path length >= path_depth (tree structure guarantees this)
-  first_leaf <- leaves[[1]]
-  split_info <- first_leaf$path[[path_depth]]
-
-  # Partition leaves based on their condition at this depth
-  # "less-equal" or "equal" go left, "more" or "not-equal" go right
-  is_left_condition <- function(leaf) {
-    op <- leaf$path[[path_depth]]$op
-    op %in% c("less-equal", "equal")
-  }
-
-  left_leaves <- Filter(is_left_condition, leaves)
-  right_leaves <- Filter(Negate(is_left_condition), leaves)
-
-  # Build condition (use left condition)
-  condition <- build_nested_catboost_condition(split_info, cat_mapping)
-
-  left_subtree <- build_nested_nonoblivious_node(
-    left_leaves,
-    cat_mapping,
-    path_depth + 1
+build_nested_catboost_nonoblivious_tree <- function(tree, cat_mapping) {
+  build_nested_from_flat_paths(
+    tree,
+    function(path_elem) {
+      build_nested_catboost_condition(path_elem, cat_mapping)
+    },
+    catboost_is_left_op
   )
-  right_subtree <- build_nested_nonoblivious_node(
-    right_leaves,
-    cat_mapping,
-    path_depth + 1
-  )
-
-  expr(case_when(!!condition ~ !!left_subtree, .default = !!right_subtree))
 }
 
 # Build condition expression for a split

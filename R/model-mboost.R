@@ -29,6 +29,12 @@ mboost_components <- function(model) {
   nu <- get("nu", envir = e)
   offset <- get("offset", envir = e)
 
+  # Subsetting a fitted model (`model[m]`, as the `cvrisk()` workflow does) sets
+  # `mstop` in this same environment but leaves `ens` at its full length, so the
+  # ensemble has to be truncated to the iterations the model actually uses.
+  # Raising `mstop` grows `ens`, so truncation is always the right operation.
+  ens <- ens[seq_len(get("mstop", envir = e))]
+
   tree_info_list <- map(ens, function(bm) {
     te <- rlang::fn_env(bm$predict)
     tree <- get("tree", envir = te)
@@ -52,7 +58,10 @@ mboost_components <- function(model) {
 
 # Combine per-tree expressions into the full boosting prediction.
 mboost_build_formula <- function(tree_info_list, nu, offset) {
-  tree_exprs <- map(tree_info_list, generate_nested_case_when_tree)
+  tree_exprs <- map(
+    tree_info_list,
+    \(tree_info) generate_nested_case_when_tree(tree_info, missing = "na")
+  )
   res <- reduce_addition(tree_exprs)
   expr(!!offset + !!nu * !!res)
 }
@@ -83,4 +92,12 @@ tidypredict_fit.blackboost <- function(model, ...) {
 
   comps <- mboost_components(model)
   mboost_build_formula(comps$tree_info_list, comps$nu, comps$offset)
+}
+
+build_tree_formula.pm_tree_blackboost <- function(model) {
+  mboost_build_formula(
+    model$tree_info_list,
+    model$general$nu,
+    model$general$offset
+  )
 }

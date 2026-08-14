@@ -91,7 +91,7 @@ tidypredict_fit.H2OBinomialModel <- function(model, ...) {
   f <- reduce_addition(h2o_tree_exprs(model))
   init_f <- model@model$init_f %||% 0
   # Probability of the second (positive) domain level: logistic link.
-  expr(1 / (1 + exp(-(!!init_f + !!f))))
+  expr_logistic(expr(!!init_f + !!f))
 }
 
 #' @export
@@ -110,12 +110,7 @@ tidypredict_fit.H2OMultinomialModel <- function(model, ...) {
     f
   })
 
-  exp_raws <- map(raw_scores, \(x) expr(exp(!!x)))
-  denom <- reduce_addition(exp_raws)
-
-  result <- map(exp_raws, \(x) expr(!!x / (!!denom)))
-  names(result) <- domain
-  result
+  expr_softmax(raw_scores, domain)
 }
 
 # Test model -------------------------------------------------------
@@ -169,9 +164,8 @@ tidypredict_test.H2OMultinomialModel <- function(
   max_rows = NULL,
   xg_df = NULL
 ) {
-  if (is.numeric(max_rows)) {
-    df <- head(df, max_rows)
-  }
+  df <- maybe_head(df, max_rows)
+
   domain <- h2o_response_domain(model)
   preds <- as.data.frame(h2o::h2o.predict(model, h2o::as.h2o(df)))
   formulas <- tidypredict_fit(model)
@@ -182,78 +176,9 @@ tidypredict_test.H2OMultinomialModel <- function(
   )
   base_matrix <- as.matrix(preds[, domain, drop = FALSE])
 
-  diffs <- abs(base_matrix - te_matrix)
-  alert <- any(diffs > threshold)
-
-  message <- paste0(
-    "tidypredict test results (multiclass: ",
-    length(domain),
-    " classes)\n",
-    "Difference threshold: ",
-    threshold,
-    "\n"
-  )
-  if (alert) {
-    message <- paste0(
-      message,
-      "\nFitted records above the threshold: ",
-      sum(apply(diffs, 1, max) > threshold),
-      "\n\nMax difference: ",
-      max(diffs)
-    )
-  } else {
-    message <- paste0(
-      message,
-      "\n All results are within the difference threshold"
-    )
-  }
-
-  raw_results <- data.frame(rowid = seq_len(nrow(df)))
-  raw_results$max_diff <- apply(diffs, 1, max)
-  raw_results$fit_threshold <- raw_results$max_diff > threshold
-
-  results <- list()
-  results$raw_results <- raw_results
-  results$message <- message
-  results$alert <- alert
-  structure(results, class = c("tidypredict_test", "list"))
+  test_results_multiclass(base_matrix, te_matrix, threshold, domain)
 }
 
 h2o_test_results <- function(base, te, threshold) {
-  raw_results <- data.frame(
-    rowid = seq_along(base),
-    base = base,
-    fit_te = te
-  )
-  raw_results$fit_diff <- abs(raw_results$base - raw_results$fit_te)
-  raw_results$fit_threshold <- raw_results$fit_diff > threshold
-
-  alert <- sum(raw_results$fit_threshold) > 0
-
-  message <- paste0(
-    "tidypredict test results\n",
-    "Difference threshold: ",
-    threshold,
-    "\n"
-  )
-  if (alert) {
-    message <- paste0(
-      message,
-      "\nFitted records above the threshold: ",
-      sum(raw_results$fit_threshold),
-      "\n\nMax difference: ",
-      max(raw_results$fit_diff)
-    )
-  } else {
-    message <- paste0(
-      message,
-      "\n All results are within the difference threshold"
-    )
-  }
-
-  results <- list()
-  results$raw_results <- raw_results
-  results$message <- message
-  results$alert <- alert
-  structure(results, class = c("tidypredict_test", "list"))
+  test_results_numeric(base, te, threshold)
 }

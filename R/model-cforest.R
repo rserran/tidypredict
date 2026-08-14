@@ -6,13 +6,7 @@
 cforest_check_regression <- function(model) {
   response_col <- model$fitted[["(response)"]]
   if (!is.numeric(response_col)) {
-    cli::cli_abort(
-      c(
-        "Classification models are not supported for cforest.",
-        i = "Only regression models can be converted to tidy formulas.",
-        i = "Classification requires a voting mechanism that cannot be expressed as a single formula."
-      )
-    )
+    abort_classification_unsupported("cforest")
   }
   invisible(model)
 }
@@ -46,10 +40,16 @@ tidypredict_fit.cforest <- function(model, ...) {
     seq_len(n_trees),
     function(tree_no) {
       tree_info <- partykit_tree_info_full(partykit::gettree(model, tree_no))
-      generate_nested_case_when_tree(tree_info)
+      generate_nested_case_when_tree(tree_info, missing = "na")
     }
   )
 
-  res <- reduce_addition(tree_exprs)
-  expr_division(res, n_trees)
+  expr_mean(tree_exprs, n_trees)
+}
+
+build_tree_formula.pm_tree_cforest <- function(model) {
+  expr_mean(map(
+    model$tree_info_list,
+    \(tree_info) generate_nested_case_when_tree(tree_info, missing = "na")
+  ))
 }

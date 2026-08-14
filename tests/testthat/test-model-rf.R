@@ -19,7 +19,7 @@ test_that("returns the right output", {
   )
 })
 
-test_that("Model can be saved and re-loaded", {
+test_that("model can be saved and re-loaded", {
   set.seed(1234)
 
   model <- randomForest::randomForest(mpg ~ ., data = mtcars, ntree = 3)
@@ -31,15 +31,15 @@ test_that("Model can be saved and re-loaded", {
   expect_equal(fit_pred, as.vector(original_pred))
 })
 
-test_that("formulas produces correct predictions", {
+test_that("formulas produce correct predictions", {
   set.seed(1234)
 
   # regression
-  expect_snapshot(
+  expect_false(
     tidypredict_test(
       randomForest::randomForest(mpg ~ ., data = mtcars, ntree = 3),
       mtcars,
-    )
+    )$alert
   )
 })
 
@@ -268,4 +268,118 @@ test_that(".extract_rf_trees produces correct predictions when averaged", {
   native <- as.numeric(predict(model, mtcars))
 
   expect_equal(avg_pred, native)
+})
+
+test_that("parsed models use the right split variable at every node (#232)", {
+  skip_if_not_installed("randomForest")
+  set.seed(123)
+  model <- randomForest::randomForest(mpg ~ wt + cyl, data = mtcars, ntree = 5)
+
+  # Leaves report a split variable of 0, and indexing the term labels with a 0
+  # used to shorten the vector, misaligning every split name after the first
+  # leaf. The direct builder was unaffected, so only the parsed path was wrong.
+  pm <- as_parsed_model(parse_model(model))
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(pm), mtcars),
+    unname(predict(model, mtcars))
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(pm), mtcars),
+    rlang::eval_tidy(tidypredict_fit(model), mtcars)
+  )
+})
+
+test_that("parsed model leaf values carry no names", {
+  skip_if_not_installed("randomForest")
+  set.seed(123)
+  model <- randomForest::randomForest(mpg ~ wt + cyl, data = mtcars, ntree = 2)
+
+  info <- rf_tree_info_full(model, 1, names(model$forest$ncat))
+  expect_null(names(info$prediction))
+  expect_null(names(info$splitvarName))
+})
+
+test_that("a missing predictor gives NA, matching predict() (#294)", {
+  skip_if_not_installed("randomForest")
+
+  set.seed(1)
+  model <- randomForest::randomForest(mpg ~ wt + cyl + disp, data = mtcars)
+
+  df <- mtcars
+  df$wt[1:5] <- NA_real_
+  # A predictor the row's path may never consult still yields NA, because
+  # `randomForest::predict()` returns NA for any incomplete row.
+  df$disp[6:8] <- NA_real_
+
+  fit <- rlang::eval_tidy(tidypredict_fit(model), df)
+  base <- unname(predict(model, df))
+
+  expect_equal(is.na(fit), is.na(base))
+  expect_equal(fit[-(1:8)], base[-(1:8)])
+  expect_false(tidypredict_test(model, df = df)$alert)
+})
+
+test_that("unordered factor splits match predict() (#282)", {
+  skip_if_not_installed("randomForest")
+
+  set.seed(1)
+  df <- transform(mtcars, gear = factor(gear), carb = factor(carb))
+  model <- randomForest::randomForest(mpg ~ wt + gear + carb, data = df)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    unname(predict(model, df))
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(parse_model(model)), df),
+    unname(predict(model, df))
+  )
+})
+
+test_that("ordered factor splits match predict() (#282)", {
+  skip_if_not_installed("randomForest")
+
+  set.seed(1)
+  df <- transform(mtcars, gear = factor(gear, ordered = TRUE))
+  model <- randomForest::randomForest(mpg ~ wt + gear, data = df)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    unname(predict(model, df))
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(parse_model(model)), df),
+    unname(predict(model, df))
+  )
+})
+
+test_that("a factor split reads level bits, not a threshold (#282)", {
+  skip_if_not_installed("randomForest")
+
+  # A split point of 10 is binary 1010, so the 2nd and 4th levels go left
+  split <- rf_split_info("f", 10, 4, c("a", "b", "c", "d"))
+
+  expect_true(split$is_categorical)
+  expect_equal(unlist(split$vals), c("b", "d"))
+})
+
+test_that("factor splits match predict() for class probabilities (#282)", {
+  skip_if_not_installed("randomForest")
+
+  set.seed(1)
+  df <- transform(
+    mtcars,
+    gear = factor(gear),
+    am = factor(am, labels = c("auto", "manual"))
+  )
+  model <- randomForest::randomForest(am ~ wt + gear, data = df)
+
+  trees <- .extract_rf_classprob(model)
+  probs <- sapply(trees, function(exprs) {
+    rowMeans(sapply(exprs, \(e) rlang::eval_tidy(e, df)))
+  })
+
+  base <- unclass(predict(model, df, type = "prob"))[, colnames(probs)]
+  expect_equal(probs, unname(base), ignore_attr = "dimnames")
 })

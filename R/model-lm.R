@@ -1,11 +1,5 @@
 # Predict ---------------------------------------
 
-#' @export
-tidypredict_fit.lm <- function(model) {
-  parsedmodel <- parse_model(model)
-  build_fit_formula(parsedmodel)
-}
-
 build_fit_formula <- function(parsedmodel) {
   f <- build_linear_predictor(parsedmodel$terms)
 
@@ -50,7 +44,7 @@ apply_inverse_link <- function(f, link) {
   switch(
     link,
     "identity" = f,
-    "logit" = expr(1 - 1 / (1 + exp(!!f))),
+    "logit" = expr_logistic(f),
     "log" = expr(exp(!!f)),
     "inverse" = expr(1 / (!!f)),
     "1/mu^2" = expr(1 / sqrt(!!f)),
@@ -99,8 +93,16 @@ parse_model_lm <- function(model, call = rlang::caller_env()) {
   pm$general$type <- "regression"
   pm$general$residual <- model$df.residual
 
-  if (length(summary(model)$sigma^2) > 0) {
-    pm$general$sigma2 <- summary(model)$sigma^2
+  # `summary.glm()` reports the residual variance as `dispersion`; only
+  # `summary.lm()` has a `sigma`. Reading `sigma` for a glm gives `NULL`, which
+  # silently drops out of the interval expression and yields no rows.
+  sigma2 <- if (inherits(model, "glm")) {
+    summary(model)$dispersion
+  } else {
+    summary(model)$sigma^2
+  }
+  if (length(sigma2) > 0) {
+    pm$general$sigma2 <- sigma2
   }
   if (!is.null(model$family$family)) {
     pm$general$family <- model$family$family
@@ -115,20 +117,48 @@ parse_model_lm <- function(model, call = rlang::caller_env()) {
   if (class(model)[[1]] == "glm") {
     pm$general$is_glm <- 1
   }
-  terms <- map(
-    seq_len(length(labels)),
-    ~ {
-      list(
-        label = labels[.x],
-        coef = coefs[.x],
-        is_intercept = ifelse(labels[.x] == "(Intercept)", 1, 0),
-        fields = parse_label_lm(labels[.x], vars),
-        qr = parse_qr_lm(labels[.x], qr)
-      )
-    }
-  )
-  pm$terms <- terms
+  pm$terms <- build_terms(coefs, labels, vars, qr = qr)
   as_parsed_model(pm)
+}
+
+# Build the `terms` entries of a parsed model from a set of coefficients.
+#
+# `vars` is the set of variables the model was fit on, used to recognise
+# interactions and factor levels in a coefficient label. Pass `NULL` for models
+# fit from a numeric matrix, where each coefficient names a column directly.
+# `qr` adds the inverse QR decomposition needed for prediction intervals, and
+# `drop_zero` discards zero coefficients, as the penalised models do.
+build_terms <- function(
+  values,
+  labels,
+  vars = NULL,
+  qr = NULL,
+  drop_zero = FALSE
+) {
+  terms <- map2(as.numeric(values), labels, function(value, label) {
+    if (drop_zero && value == 0) {
+      return(NULL)
+    }
+    term <- list(
+      label = label,
+      coef = value,
+      is_intercept = as.integer(label == "(Intercept)"),
+      fields = if (is.null(vars)) {
+        list(list(type = "ordinary", col = label))
+      } else {
+        parse_label_lm(label, vars)
+      }
+    )
+    if (!is.null(qr)) {
+      term$qr <- parse_qr_lm(label, qr)
+    }
+    term
+  })
+
+  if (drop_zero) {
+    return(purrr::discard(terms, is.null))
+  }
+  terms
 }
 
 parse_label_lm <- function(label, vars) {
@@ -146,7 +176,7 @@ parse_label_lm <- function(label, vars) {
         !(items[i] %in% vars)
     ) {
       cat_match_vars <- vars[cat_match]
-      sole_cat_match <- cat_match_vars[rank(-nchar(cat_match_vars))][[1]]
+      sole_cat_match <- cat_match_vars[[which.max(nchar(cat_match_vars))]]
       item <- list(
         type = "conditional",
         col = sole_cat_match,
@@ -207,7 +237,7 @@ te_interval_lm <- function(parsedmodel, interval = 0.95) {
     ~ get_qr_lm(.x, parsedmodel)
   )
   qrs <- reduce_addition(qrs_map)
-  tfrac <- qt(1 - (1 - 0.95) / 2, parsedmodel$general$residual)
+  tfrac <- qt(1 - (1 - interval) / 2, parsedmodel$general$residual)
   expr(!!tfrac * sqrt((!!qrs) + (!!parsedmodel$general$sigma2)))
 }
 

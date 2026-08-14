@@ -92,6 +92,7 @@ get_xgb_trees_character <- function(x, feature_names) {
     trees <- xgboost::xgb.model.dt.tree(model = x)
   }
   trees <- as.data.frame(trees)
+  trees$Split <- f32_split_boundary(trees$Split)
   trees$original_order <- 1:nrow(trees)
 
   if (is.character(x)) {
@@ -234,48 +235,64 @@ tidypredict_fit.xgb.Booster <- function(model, ...) {
 
 # Build nested xgboost formula (from model directly)
 build_fit_formula_xgb_nested <- function(model) {
-  trees_nested <- extract_xgb_trees_nested(model)
-
-  # Apply DART weight_drop if present
   json_params <- get_xgb_json_params(model)
-  trees_nested <- apply_dart_weights(trees_nested, json_params$weight_drop)
+  params <- attr(model, "param") %||% model$params
+
+  assemble_xgb_formula(
+    extract_xgb_trees_nested(model),
+    weight_drop = json_params$weight_drop,
+    base_score = json_params$base_score,
+    objective = params$objective
+  )
+}
+
+# Everything after the trees have been built is the same whether they came from
+# the fitted model or from a parsed one.
+assemble_xgb_formula <- function(
+  trees_nested,
+  weight_drop,
+  base_score,
+  objective
+) {
+  # Apply DART weight_drop if present
+  trees_nested <- apply_dart_weights(trees_nested, weight_drop)
 
   # Additive model
   f <- reduce_addition(trees_nested)
 
-  base_score <- json_params$base_score
   if (is.null(base_score)) {
     base_score <- 0.5 # nocov
   }
-
-  params <- attr(model, "param") %||% model$params
-  objective <- params$objective
 
   apply_xgb_objective(f, objective, base_score)
 }
 
 # Build nested formula from parsed xgboost model (version 3)
 build_fit_formula_xgb_from_parsed <- function(parsedmodel) {
-  # Build nested trees from flat paths
+  # Build nested trees from flat paths. `get_xgb_path()` walks from each leaf up
+  # to the root, so the stored paths are leaf-first while
+  # `build_nested_from_flat_paths()` needs them root-first. Reversing here
+  # rather than in the parser keeps already-serialized models readable; the
+  # legacy flat builder ANDs the conditions together and does not care about
+  # order.
   trees_nested <- map(parsedmodel$trees, function(tree) {
-    build_nested_from_flat_paths(tree, build_xgb_nested_condition)
+    tree <- map(tree, function(leaf) {
+      leaf$path <- rev(leaf$path)
+      leaf
+    })
+    build_nested_from_flat_paths(
+      tree,
+      build_xgb_nested_condition,
+      xgb_is_left_op
+    )
   })
 
-  # Apply DART weight_drop if present
-  weight_drop <- parsedmodel$general$weight_drop
-  trees_nested <- apply_dart_weights(trees_nested, weight_drop)
-
-  # Additive model
-  f <- reduce_addition(trees_nested)
-
-  base_score <- parsedmodel$general$params$base_score
-  if (is.null(base_score)) {
-    base_score <- 0.5 # nocov
-  }
-
-  objective <- parsedmodel$general$params$objective
-
-  apply_xgb_objective(f, objective, base_score)
+  assemble_xgb_formula(
+    trees_nested,
+    weight_drop = parsedmodel$general$weight_drop,
+    base_score = parsedmodel$general$params$base_score,
+    objective = parsedmodel$general$params$objective
+  )
 }
 
 # Apply xgboost objective transformation to formula
@@ -302,8 +319,8 @@ apply_xgb_objective <- function(f, objective, base_score) {
   }
 
   if (objective %in% c("binary:logistic", "reg:logistic")) {
-    return(expr(
-      1 - 1 / (1 + exp(!!f + log(!!base_score / (1 - !!base_score))))
+    return(expr_logistic(
+      expr(!!f + log(!!base_score / (1 - !!base_score)))
     ))
   }
 
@@ -335,29 +352,26 @@ apply_xgb_objective <- function(f, objective, base_score) {
   )
 }
 
-# nocov start
-# Build condition for xgboost nested generation from path element
-# Note: This function is currently not called due to how build_nested_from_flat_paths
-# partitions leaves - xgboost's op naming doesn't match the expected convention.
-# Kept for potential future use when the partitioning logic is updated.
+# `get_xgb_path_fun()` labels a leaf reached through the Yes child "more-equal"
+# and one reached through the No child "less", which is the opposite of what the
+# names suggest. Yes is xgboost's left branch, so "more-equal" is left.
+xgb_is_left_op <- function(op) {
+  op == "more-equal"
+}
+
+# Build condition for xgboost nested generation from path element. Only ever
+# called with left-branch elements, so the condition is always `< threshold`.
 build_xgb_nested_condition <- function(path_elem) {
   col <- rlang::sym(path_elem$col)
   val <- as.numeric(path_elem$val)
   missing <- path_elem$missing %||% FALSE
 
-  # xgboost uses "less" for left (< threshold) and "more-equal" for right
-  if (path_elem$op %in% c("less", "more-equal")) {
-    if (missing) {
-      expr(!!col < !!val | is.na(!!col))
-    } else {
-      expr(!!col < !!val)
-    }
+  if (missing) {
+    expr(!!col < !!val | is.na(!!col))
   } else {
-    # This shouldn't happen in normal xgboost trees
-    expr(!!col >= !!val)
+    expr(!!col < !!val)
   }
 }
-# nocov end
 
 # Extract nested trees from xgboost model
 extract_xgb_trees_nested <- function(model) {
@@ -382,6 +396,7 @@ get_xgb_trees_df <- function(model) {
     trees <- xgboost::xgb.model.dt.tree(model = model)
   }
   trees <- as.data.frame(trees)
+  trees$Split <- f32_split_boundary(trees$Split)
 
   # Map feature indices to names if needed
   if (is.null(attr(model, "param"))) {

@@ -44,6 +44,8 @@ air format .
 - All new code should have an accompanying test.
 - If there are existing tests, place new tests next to similar existing tests.
 - Strive to keep your tests minimal with few comments.
+- When adding or changing support for a model, follow the "Testing a new model" battery in `CONTRIBUTING.md`.
+- Never assert that one tidypredict result equals another tidypredict result. Correctness tests compare against the modelling package's own `predict()`.
 
 ### Documentation
 
@@ -53,6 +55,9 @@ air format .
 - Whenever you add a new (non-internal) documentation topic, also add the topic to `_pkgdown.yml`. 
 - Always re-document the package after changing a roxygen2 comment.
 - Use `pkgdown::check_pkgdown()` to check that all topics are included in the reference index.
+- `_pkgdown.yml` has an explicit `articles:` section, so every new vignette must be added to one of its groups or `pkgdown` will error.
+- `vignettes/models.Rmd` is the single source of truth for which models are supported. Any newly supported model class or parsnip engine needs a row (or a cell in the parsnip column) there. The README summarizes it and must not grow back into a full list.
+- The README and `vignettes/models.Rmd` both state an exact count ("43 fitted model classes from 30 modeling packages"). Update both when the count changes. The class count is `parse_model()` methods in `NAMESPACE` minus the `model_fit` passthrough, plus classes handled only by `tidypredict_fit()` (the three H2O classes).
 
 ### `NEWS.md`
 

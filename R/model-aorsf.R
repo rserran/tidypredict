@@ -8,13 +8,7 @@
 
 aorsf_check_supported <- function(model) {
   if (!inherits(model, "ObliqueForestRegression")) {
-    cli::cli_abort(
-      c(
-        "Classification models are not supported for aorsf.",
-        i = "Only regression models can be converted to tidy formulas.",
-        i = "Classification requires a voting mechanism that cannot be expressed as a single formula."
-      )
-    )
+    abort_classification_unsupported("aorsf")
   }
 
   names_x <- model$get_names_x()
@@ -98,6 +92,9 @@ parse_model.ObliqueForest <- function(model) {
   pm$general$type <- "tree"
   pm$general$version <- 3
   n_trees <- length(model$forest$child_left)
+  # Recorded so the parsed model can reproduce `predict()`'s refusal to score
+  # an incomplete row.
+  pm$general$predictors <- model$get_names_x()
   pm$tree_info_list <- map(
     seq_len(n_trees),
     function(tree_no) aorsf_tree_info_full(model, tree_no)
@@ -119,6 +116,14 @@ tidypredict_fit.ObliqueForest <- function(model, ...) {
     }
   )
 
-  res <- reduce_addition(tree_exprs)
-  expr_division(res, n_trees)
+  # `aorsf` refuses to predict from an incomplete row ("Please remove missing
+  # values from new data, or impute them."), so there is no value to match.
+  expr_na_if_incomplete(expr_mean(tree_exprs, n_trees), model$get_names_x())
+}
+
+build_tree_formula.pm_tree_aorsf <- function(model) {
+  expr_na_if_incomplete(
+    build_tree_formula_forest(model),
+    model$general$predictors
+  )
 }

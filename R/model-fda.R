@@ -1,11 +1,5 @@
 # Predict ---------------------------------------
 
-#' @export
-tidypredict_fit.fda <- function(model) {
-  parsedmodel <- parse_model(model)
-  build_fit_formula_multinom(parsedmodel)
-}
-
 # Parse model --------------------------------------
 
 #' @export
@@ -48,22 +42,18 @@ parse_model_fda <- function(model, call = rlang::caller_env()) {
 
   labels <- rownames(coefs$slopes)
   class_terms <- lapply(seq_along(classes), function(i) {
-    fda_terms(
+    build_terms(
       c(intercepts[[i]], betas[, i]),
       c("(Intercept)", labels),
       vars
     )
   })
 
-  pm <- list()
-  pm$general$model <- "fda"
-  pm$general$version <- 2
-  pm$general$type <- "multiclass_regression"
-  pm$general$family <- "multinomial"
-  pm$classes <- classes
-  pm$class_terms <- class_terms
-
-  as_parsed_model(pm)
+  new_multiclass_parsed_model(
+    "fda",
+    classes,
+    class_terms
+  )
 }
 
 # The regression fit inside an `fda` object has to be linear in the predictors
@@ -107,19 +97,15 @@ fda_regression_coefs <- function(fit, call = rlang::caller_env()) {
   )
 }
 
-fda_terms <- function(values, labels, vars) {
-  map2(as.numeric(values), labels, function(value, label) {
-    list(
-      label = label,
-      coef = value,
-      is_intercept = as.integer(label == "(Intercept)"),
-      fields = parse_label_lm(label, vars)
-    )
-  })
-}
 
 #' @export
-acceptable_formula.fda <- function(model) acceptable_lm(model)
+acceptable_formula.fda <- function(model) {
+  # `fda()` records neither the contrasts it was given nor the levels its
+  # factors had, so an ordered predictor is as far as the check can get.
+  acceptable_ordered(model)
+
+  acceptable_lm(model)
+}
 
 # Test ---------------------------------------------
 
@@ -132,10 +118,5 @@ tidypredict_test.fda <- function(
   max_rows = NULL,
   xg_df = NULL
 ) {
-  cli::cli_abort(
-    c(
-      "{.fn tidypredict_test} does not support {.fn mda::fda} models.",
-      "i" = "Use {.fn tidypredict_fit} directly for multiclass predictions."
-    )
-  )
+  abort_test_unsupported("{.fn mda::fda} models")
 }

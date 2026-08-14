@@ -94,7 +94,9 @@ rpart_tree_info_full <- function(model) {
         right_id <- 2L * orig_node_ids[i] + 1L
         left_n <- frame$n[orig_node_ids == left_id]
         right_n <- frame$n[orig_node_ids == right_id]
-        majority_left[i] <- left_n >= right_n
+        # A tie leaves no majority to go with, and `rpart` then stops at the
+        # node rather than picking a side.
+        majority_left[i] <- if (left_n == right_n) NA else left_n > right_n
 
         node_splits[[i]] <- list(
           primary = primary,
@@ -124,7 +126,11 @@ rpart_tree_info_full <- function(model) {
     prediction = prediction,
     node_splits = node_splits,
     majority_left = majority_left_adjusted,
-    use_surrogates = use_surrogates
+    use_surrogates = use_surrogates,
+    # Only `usesurrogate = 2` carries a row that is missing the primary split
+    # and every surrogate on to a child, in the majority direction. Below that
+    # the row stops here and takes this node's own fitted value.
+    stops_at_node = usesurr < 2
   )
 }
 
@@ -134,11 +140,14 @@ extract_one_split <- function(splits, idx, model, var_name) {
   index <- splits[idx, "index"]
 
   if (abs(ncat) == 1) {
-    # Continuous split
+    # Continuous split. `rpart` sends values strictly below the cut point to
+    # the "less than" side, which matters when a cut point coincides with an
+    # observed value
     list(
       col = var_name,
       val = index,
       is_categorical = FALSE,
+      strict = TRUE,
       needs_swap = ncat == 1
     )
   } else {
@@ -211,19 +220,11 @@ tidypredict_test.rpart <- function(
   max_rows = NULL,
   xg_df = NULL
 ) {
-  if (is.numeric(max_rows)) {
-    df <- head(df, max_rows)
-  }
+  df <- maybe_head(df, max_rows)
 
   # rpart uses type = "vector" for regression, type = "class" for classification
-  pred_type <- if (model$method == "class") "class" else "vector"
-  base <- predict(model, df, type = pred_type)
-
-  # For classification, threshold should be 0 (exact match)
-  if (model$method == "class") {
-    threshold <- 0
-    base <- as.character(base)
-  }
+  is_class <- model$method == "class"
+  base <- predict(model, df, type = if (is_class) "class" else "vector")
 
   te <- tidypredict_to_column(
     df,
@@ -232,49 +233,11 @@ tidypredict_test.rpart <- function(
     vars = c("fit_te", "upr_te", "lwr_te")
   )
 
-  raw_results <- data.frame(fit = base, fit_te = te$fit_te)
-  raw_results$fit_diff <- if (model$method == "class") {
-    as.numeric(raw_results$fit != raw_results$fit_te)
-  } else {
-    raw_results$fit - raw_results$fit_te
-  }
-  raw_results$fit_threshold <- abs(raw_results$fit_diff) > threshold
-
-  rowid <- seq_len(nrow(raw_results))
-  raw_results <- cbind(data.frame(rowid), raw_results)
-
-  threshold_df <- data.frame(fit_threshold = sum(raw_results$fit_threshold))
-  alert <- any(threshold_df > 0)
-
-  message <- paste0(
-    "tidypredict test results\n",
-    "Difference threshold: ",
-    threshold,
-    "\n"
-  )
-
-  if (alert) {
-    difference <- max(abs(raw_results$fit_diff))
-    message <- paste0(
-      message,
-      "\nFitted records above the threshold: ",
-      threshold_df$fit_threshold,
-      "\n\nMax difference: ",
-      difference
-    )
-  } else {
-    message <- paste0(
-      message,
-      "\n All results are within the difference threshold"
-    )
+  if (is_class) {
+    return(test_results_class(base, te$fit_te, model$call))
   }
 
-  results <- list()
-  results$model_call <- model$call
-  results$raw_results <- raw_results
-  results$message <- message
-  results$alert <- alert
-  structure(results, class = c("tidypredict_test", "list"))
+  test_results_numeric(base, te$fit_te, threshold, model$call)
 }
 
 # For {orbital}
@@ -297,6 +260,12 @@ tidypredict_test.rpart <- function(
     )
   }
 
+  lapply(rpart_classprob_tree_info(model), generate_nested_case_when_tree)
+}
+
+# One tree_info per outcome level, where the node predictions are the class
+# probabilities instead of the predicted class
+rpart_classprob_tree_info <- function(model) {
   # Extract class probabilities from yval2
   # yval2 structure: [yval, count_class1, ..., count_classN, prob_class1, ..., prob_classN, nodeprob]
   yval2 <- model$frame$yval2
@@ -311,11 +280,16 @@ tidypredict_test.rpart <- function(
   # Get tree structure
   tree_info <- rpart_tree_info_full(model)
 
-  res <- list()
-  for (i in seq_len(ncol(probs))) {
-    tree_info_copy <- tree_info
-    tree_info_copy$prediction <- probs[, i]
-    res[[i]] <- generate_nested_case_when_tree(tree_info_copy)
-  }
+  res <- map(
+    seq_len(ncol(probs)),
+    ~ tree_info_with_predictions(tree_info, unname(probs[, .x]))
+  )
+  names(res) <- ylevels
   res
+}
+
+# Parsed model builder ----------------------------
+
+build_tree_formula.pm_tree_rpart <- function(model) {
+  build_tree_formula_single(model)
 }

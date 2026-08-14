@@ -28,6 +28,23 @@ parse_model.glmnet <- function(model) {
   parse_model_glmnet(model)
 }
 
+# `glmnet` records only whether an offset was used, never the values, and
+# `predict()` requires them again as `newoffset`. There is nothing on the model
+# to rebuild the offset from, so the model cannot be reproduced at all.
+glmnet_check_no_offset <- function(model, call = rlang::caller_env()) {
+  if (isTRUE(model$offset)) {
+    cli::cli_abort(
+      c(
+        "Models fit with an {.arg offset} are not supported for glmnet.",
+        i = "{.pkg glmnet} stores only a flag, not the offset values, so the
+        prediction cannot be reproduced."
+      ),
+      call = call
+    )
+  }
+  invisible(model)
+}
+
 parse_model_glmnet <- function(model, call = rlang::caller_env()) {
   if (length(model$lambda) != 1) {
     cli::cli_abort(
@@ -36,34 +53,18 @@ parse_model_glmnet <- function(model, call = rlang::caller_env()) {
       call = call
     )
   }
+  glmnet_check_no_offset(model, call = call)
   if (inherits(model$beta, "dgCMatrix")) {
     model$beta <- setNames(as.numeric(model$beta), rownames(model$beta))
   }
   coefs <- c("(Intercept)" = unname(model$a0), model$beta)
-
-  names <- names(coefs)
-  values <- as.vector(coefs)
-
-  terms <- map2(values, names, function(value, name) {
-    if (value == 0) {
-      return(NULL)
-    }
-    list(
-      label = name,
-      coef = value,
-      is_intercept = as.integer(name == "(Intercept)"),
-      fields = list(list(type = "ordinary", col = name))
-    )
-  })
-
-  terms <- purrr::discard(terms, is.null)
 
   pm <- list()
   pm$general$model <- class(model)[[2]]
   pm$general$version <- 1
   pm$general$type <- "regression"
   pm$general$is_glm <- 1
-  pm$terms <- terms
+  pm$terms <- glmnet_terms(coefs)
 
   if (inherits(model, "elnet")) {
     pm$general$family <- "gaussian"
@@ -92,23 +93,15 @@ parse_model_glmnet <- function(model, call = rlang::caller_env()) {
   as_parsed_model(pm)
 }
 
-glmnet_multinom_terms <- function(coefs) {
-  names <- names(coefs)
-  values <- as.vector(coefs)
-
-  terms <- map2(values, names, function(value, name) {
-    if (value == 0) {
-      return(NULL)
-    }
-    list(
-      label = name,
-      coef = value,
-      is_intercept = as.integer(name == "(Intercept)"),
-      fields = list(list(type = "ordinary", col = name))
-    )
-  })
-
-  purrr::discard(terms, is.null)
+# glmnet is fit from a numeric matrix, so each coefficient names a column
+# directly and penalised-away coefficients are dropped.
+glmnet_terms <- function(coefs) {
+  build_terms(
+    as.vector(coefs),
+    names(coefs),
+    vars = NULL,
+    drop_zero = TRUE
+  )
 }
 
 parse_model_glmnet_multinom <- function(model, call = rlang::caller_env()) {
@@ -119,6 +112,7 @@ parse_model_glmnet_multinom <- function(model, call = rlang::caller_env()) {
       call = call
     )
   }
+  glmnet_check_no_offset(model, call = call)
 
   classes <- model$classnames
   a0 <- model$a0
@@ -127,27 +121,20 @@ parse_model_glmnet_multinom <- function(model, call = rlang::caller_env()) {
     beta <- model$beta[[cl]]
     beta <- setNames(as.numeric(beta), rownames(beta))
     coefs <- c("(Intercept)" = unname(a0[cl, ]), beta)
-    glmnet_multinom_terms(coefs)
+    glmnet_terms(coefs)
   })
 
-  pm <- list()
-  pm$general$model <- class(model)[[2]]
-  pm$general$version <- 1
-  pm$general$type <- "multiclass_regression"
-  pm$general$family <- "multinomial"
-  pm$classes <- classes
-  pm$class_terms <- class_terms
-
-  as_parsed_model(pm)
+  new_multiclass_parsed_model(
+    class(model)[[2]],
+    classes,
+    class_terms,
+    version = 1
+  )
 }
 
 build_fit_formula_multinom <- function(parsedmodel) {
   lps <- map(parsedmodel$class_terms, build_linear_predictor)
-  exp_lps <- map(lps, ~ expr(exp(!!.x)))
-  denom <- reduce_addition(exp_lps)
-  res <- map(lps, ~ expr(exp(!!.x) / (!!denom)))
-  names(res) <- parsedmodel$classes
-  res
+  expr_softmax(lps, parsedmodel$classes)
 }
 
 #' @export

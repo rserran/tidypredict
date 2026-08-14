@@ -1,5 +1,109 @@
 # tidypredict (development version)
 
+- The naive Bayes article now documents the one case where `tidypredict_fit()` does not reproduce `predict()` for `klaR::NaiveBayes()` and `naivebayes::naive_bayes()` models: both replace a normal density that underflowed to zero with their `threshold` argument, which takes a value roughly 38 standard deviations from the class mean, and the log scale used throughout never underflows. (#300)
+
+- `tidypredict_fit()` now applies the per-rule extrapolation limits for `Cubist::cubist()` models. Cubist holds each rule to the span of the training outcomes it covers, widened at both ends by `extrap` times that span and never crossing zero; without it a rule's linear model runs away on data outside its range. This engages on rows of the training data too, not only on extrapolation. (#285)
+
+- `tidypredict_fit()` now supports factor predictors for `Cubist::cubist()` models, which previously produced a formula that could not be evaluated (`object '"f"' not found`). Rule conditions are now read from the model text rather than from `model$splits`, which records neither the quoted column name nor a condition naming a single level, so such a rule silently applied to every row. (#322)
+
+- `set_catboost_categories()` now names every category of a `catboost` model, for any number of factor levels. It used to discover the hash CatBoost stores for a level by training probe models and reading back a split, which only worked reliably for a three-level factor; a factor with four or more levels errored with "No category mapping found for hash", and a two-level one could silently name the levels the wrong way round. Hashes are now taken from CatBoost's own hash function, and a level that cannot be named is reported at once rather than at fit time. This also affects `tidypredict_fit()` on a parsnip or bonsai `catboost` fit. (#297)
+
+- `tidypredict_fit()` now rejects an `earth::earth()` model fit with a contrast other than the treatment one, with the same message the rest of the linear family gives. An ordered factor, which R fits with `contr.poly` by default, previously produced a formula comparing the factor column against contrast values such as `-0.2236`, which could not be evaluated. `earth` records no contrasts, so they are now read back off the names it gave the columns each factor expanded into. (#323)
+
+- `tidypredict_fit()` now rejects a `MASS::lda()`, `MASS::qda()` or `mda::fda()` model fit with a contrast other than the treatment one. None of the three records the contrasts it used, so the existing check was a no-op and an ordered factor, which R fits with `contr.poly` by default, silently produced wrong posterior probabilities: the level recovered from a column named `f.L` matches no row, so the term was dropped without complaint. (#343)
+
+- `tidypredict_fit()` now routes missing values by each node's `missing_type` for `lightgbm` models, matching `predict()`. LightGBM consults `default_left` only when `missing_type` is `NaN` or `Zero`; a feature with no missing value in the training data gets `None`, where a missing value is coerced to `0` and compared against the threshold like any other. Routing purely by `default_left` was wrong for every model trained without missing data, which is the common case. (#288)
+
+- `tidypredict_fit()` now honours `zero_as_missing` for `lightgbm` models, where an exact zero takes the same branch as a missing value. Predictions were wrong on the training data itself, not only on new zeros. (#288)
+
+- `tidypredict_fit()` no longer sends a missing value down the left branch of a categorical split for `lightgbm` models. LightGBM sends it right whatever `default_left` says. (#288)
+
+- `tidypredict_fit()` no longer returns `NaN` for every class probability of a row whose class scores are large, for any model whose prediction is a softmax: `MASS::lda()`, `MASS::qda()`, `mda::fda()`, `sparsediscrim`, `sda`, `mixOmics`, `nnet::multinom()`, `nnet::nnet()`, multinomial `glmnet`, naive Bayes, `h2o`, `lightgbm` and `catboost`. The probabilities were written as `exp(s) / sum(exp(s))`, which is `Inf / Inf` once a score passes about 710. They are now written as `1 / sum(exp(s_j - s_k))`, which is the same quantity and cannot overflow. (#299)
+
+- `tidypredict_fit()` now rejects a `glmnet` model fit with an `offset` rather than silently dropping it, for both the single-outcome and the multinomial paths. glmnet records only whether an offset was used, never the values, and `predict()` requires them again as `newoffset`, so the prediction cannot be reproduced. Predictions were previously wrong by the size of the offset. (#296)
+
+- `tidypredict_fit()` now rejects a `ranger::ranger()` probability or survival forest rather than producing an unusable formula. Neither records a value per leaf, so a guard that read one let both through and emitted `case_when(x <= 0.0066 ~ NULL, .default = NULL)`, which failed later with an unrelated vctrs error; `parse_model()` returned a parsed model with no predictions and no error at all. The forest type is now read from `treetype`. (#301)
+
+- `tidypredict_fit()` now honours an `mstop` reduced after fitting for `mboost` models, as `model[m]` does. Subsetting a fitted model, which is the standard `cvrisk()` workflow, sets `mstop` but leaves the stored ensemble at its full length, so every boosting iteration was used regardless. (#306)
+
+- `tidypredict_fit()` now sends a value sitting exactly on a split boundary the way the model does, for the backends that compare split thresholds as 32-bit floats: `xgboost`, `lightgbm`, `catboost`, `Cubist::cubist()` and `C50::C5.0()`. The boundary is the midpoint between the stored threshold and the adjacent float, and a value can land precisely on it, where rounding to a float is a tie broken towards the even mantissa. About half of all thresholds resolve that tie towards the neighbour rather than the threshold, and those sent such a value down the wrong branch. (#350)
+
+- `tidypredict_fit()` now combines the trials of a boosted `C50::C5.0()` model with the confidence C5.0 votes with, `(freq + prior) / (n_leaf + 1)`, where `prior` is the class proportion at the root of that trial's own tree. It used the Laplace ratio `(freq + 1) / (n_leaf + 2)` instead, which changed the predicted class for 72 of 720 swept configurations. A tie in the total vote now goes to the default class, as `SelectClass` does. (#287)
+
+- `tidypredict_fit()` no longer reads C5.0's `[ordered]` marker as part of the first level of an ordered predictor. (#287)
+
+- `tidypredict_fit()` now reports a `C50::C5.0()` model that records no tree, rather than failing with "subscript out of bounds". `C5.0()` leaves the tree empty when fitting failed, which a predictor name or level containing `,` or `:` causes. (#287)
+
+- `tidypredict_interval()` now works for `glm()` models. It returned `numeric(0)` for every gaussian glm, because the residual variance was read from `summary()$sigma`, which only `summary.lm()` has; `summary.glm()` reports it as `dispersion`. `tidypredict_to_column(add_interval = TRUE)` errored as a result. (#293)
+
+- `tidypredict_sql()` and `tidypredict_sql_interval()` now check that dbplyr is installed before using it, and are no longer marked as internal in the documentation index. (#314)
+
+- `tidypredict_fit()` now supports splits with more than two branches for `partykit` models, such as those from `ctree_control(multiway = TRUE)` or a `partysplit()` with several breaks. Every branch after the second was previously dropped, silently for a factor split and with a warning for a numeric one. (#295)
+
+- `tidypredict_fit()` now honours `partysplit(right = FALSE)` for `partykit` models, where the left branch is `x < break` rather than `x <= break`. A value falling exactly on the break took the wrong branch. (#295)
+
+- `tidypredict_fit()` now handles ordered factor predictors for `partykit` models, which previously errored with "Result must be length 1, not 2". `partykit` splits an ordered factor with a break on the level's integer code rather than with a set of levels. (#295)
+
+- `tidypredict_fit()` no longer swaps the two branches of every `partykit::party` converted from an `rpart` model. `as.party.rpart()` maps the interval below the break to the second child, and the child order was read directly instead of through that mapping. (#295)
+
+- `tidypredict_fit()` now decodes factor splits for `ranger::ranger()` models, in all three `respect.unordered.factors` modes and for ordered factors. The split value names a position in the level order stored on the model, or under `"partition"` lists the level indices going right; it was compared as a numeric threshold against the factor column itself. (#283)
+
+- `tidypredict_fit()` now decodes factor splits for `randomForest::randomForest()` models. An unordered factor's split point is an integer whose bits name the levels going left, and an ordered factor's is compared against the level's integer code; both were read as a numeric threshold on the column itself, which silently produced `NA` or a wrong branch. (#282)
+
+- `tidypredict_fit()` now skips a feature whose value is missing or whose factor level was not seen while fitting, for `klaR::NaiveBayes()` and `naivebayes::naive_bayes()` models, matching both packages' `predict()` instead of returning `NA` for the whole row. A row missing every predictor falls back on the class prior alone. (#300)
+
+- `tidypredict_fit()` no longer errors with "missing value where TRUE/FALSE needed" for a `naivebayes::naive_bayes()` model with an outcome class of fewer than two observations. Such a class has no standard deviation, and the resulting `NA` probabilities now match `predict()`. (#300)
+
+- `tidypredict_fit()` now substitutes the training mean for a missing predictor in `Cubist::cubist()` models, matching `predict()`. The mean is read from the model text at the precision Cubist itself stores it, and is used in the rule conditions as well as in the linear models. (#294)
+
+- `tidypredict_fit()` now sends a missing predictor down the left branch for `ranger::ranger()` models, matching `predict()`. `ranger` compares as `value > splitval`, which a missing value fails, so it takes the same branch as a value at or below the split point. (#294)
+
+- `tidypredict_fit()` now routes missing values through surrogate splits for `rpart::rpart()` models, and for `baguette::bagger()` models using the `"CART"` base model, matching `predict()` instead of sending every missing value down the right branch. All three `usesurrogate` modes are followed, including stopping at the node when no surrogate resolves the row and there is no majority to go with. (#294)
+
+- `tidypredict_fit()` now returns `NA` for a row that reaches a split on a predictor it is missing, for `partykit::ctree()`, `partykit::cforest()` and `mboost::blackboost()` models. These backends resolve a missing value by randomly sampling the split probabilities, so `predict()` returns a different answer on each call and there is no value to reproduce. A row whose path never reaches a split on the missing column is unaffected. (#294)
+
+- `tidypredict_fit()` now returns `NA` for a row with a missing predictor for `randomForest::randomForest()` and `aorsf::orsf()` models, rather than a confident value the model itself would never produce. `randomForest::predict()` returns `NA` for any incomplete row and `aorsf` refuses to predict from one at all, so there is no value to match. Rows are kept rather than dropped. (#294, #325)
+
+- `tidypredict_test()` now handles missing predictions instead of erroring with "missing value where TRUE/FALSE needed". A row where both the model and tidypredict return `NA` counts as a match, and a row where only one of them does is reported as a mismatch, so the function can be used to check how a model behaves on missing data. (#309)
+
+- `tidypredict_test()` now errors when given data with no rows, rather than reporting that all results are within the difference threshold. (#309)
+
+- `tidypredict_fit()` now returns correct predictions for `C50::C5.0()` models whose predictor values fall on a split cut point. C5.0 compares cut points as 32-bit floats, so values between a cut and its float image were sent down the wrong branch. (#287)
+
+- `tidypredict_fit()` now returns correct predictions for `catboost` models whose predictor values fall on a split border. catboost compares borders as 32-bit floats, so a value a fraction above a border was sent down the wrong branch. (#298)
+
+- `tidypredict_save()` and `tidypredict_load()` write a parsed model to a YAML file and read it back. Use them instead of `yaml::write_yaml()`, which stores only 7 significant digits by default and so rounds split thresholds enough to send rows down a different branch when the model is re-loaded. (#307)
+
+- `tidypredict_fit()` now picks the right factor predictor when three or more variable names are nested prefixes of one another, such as `x`, `xy` and `xyz`. The longest match was selected by indexing with `rank()`, which silently chose the wrong variable and produced wrong predictions for `lm()`, `glm()`, `quantreg::rq()`, `nnet::multinom()`, `nnet::nnet()` and `earth::earth()`. (#290)
+
+- Added support for `baguette::bagger()` bagged tree ensembles fit with the `"CART"` or `"C5.0"` base model, including `bag_tree()` parsnip models fitted with the `"rpart"` or `"C5.0"` engine. Regression predictions average the individual trees, and classification predictions return the class with the largest average class probability. (#232)
+
+- `tidypredict_fit()` now supports `C50::C5.0()` models that split a discrete predictor into one branch per level. (#232)
+
+- `tidypredict_fit()` now uses a strict inequality (`<`) for the continuous splits of `rpart::rpart()` models, matching how `rpart` assigns values that are exactly equal to a cut point. (#232)
+
+- `tidypredict_fit()` now returns correct predictions for `randomForest::randomForest()` models that have been saved and reloaded with `parse_model()` and `as_parsed_model()`. Every split variable after the first leaf in a tree was named incorrectly, so the reloaded model split on the wrong columns. (#232)
+
+- `tidypredict_fit()` now returns correct predictions for `Cubist::cubist()` models whose predictor values fall exactly on a split threshold. Cubist compares split thresholds as 32-bit floats, so a `disp` of 95.1 was sent down the wrong branch when the comparison was made in R's doubles. (#232)
+
+- `tidypredict_test()` now supports `C50::C5.0()` models, including boosted and rule-based ones. (#232)
+
+- `tidypredict_interval()` now honours its `interval` argument. It was hardcoded to 0.95, so `tidypredict_interval()`, `tidypredict_to_column(add_interval = TRUE)`, and `tidypredict_sql_interval()` all returned a 95% interval regardless of what was asked for. (#232)
+
+- `tidypredict_interval()` now reports an unsupported model class with a message naming the class, rather than R's default "no applicable method" error. (#232)
+
+- `tidypredict_to_column()` now explains that a model returning more than one formula is unsupported, instead of incorrectly claiming that tree based models are unsupported. (#232)
+
+- `tidypredict_fit()` now reports an unsupported model class with a message naming the class, rather than R's default "no applicable method" error. (#232)
+
+- `tidypredict_fit()` now keeps small probabilities for models with a logit link, such as `glm()` with `family = binomial` and `LiblineaR::LiblineaR()`. The inverse link was written in a form that rounded to exactly 0 once the linear predictor fell below about -37. (#232)
+
+- Added support for `dbarts::bart()` Bayesian additive regression trees, including `bart()` parsnip models fitted with the `"dbarts"` engine. The model has to be fit with `keeptrees = TRUE`, and only continuous outcomes are supported since binary outcomes are fit with a probit link. (#232)
+
+- Added support for `klaR::NaiveBayes()` naive Bayes models with Gaussian densities (`usekernel = FALSE`), including `naive_Bayes()` parsnip models fitted with the `"klaR"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax of the summed log densities), and `tidypredict_test()` is not supported for these multiclass models. (#232)
+
+- Added support for `naivebayes::naive_bayes()` naive Bayes models fit without kernel density estimates (`usekernel = FALSE`), including Gaussian, categorical, Bernoulli, and Poisson conditional distributions, and `naive_Bayes()` parsnip models fitted with the `"naivebayes"` engine. `tidypredict_fit()` returns a named list of class-probability expressions, and `tidypredict_test()` is not supported for these multiclass models. (#232)
+
 - Added support for `parsnip::nullmodel()` models, including `null_model()` parsnip models fitted with the `"parsnip"` engine. Regression models return the outcome mean as a single expression, and classification models return a named list of constant class-probability expressions, for which `tidypredict_test()` is not supported. (#232)
 
 - Added support for the partial least squares models in `mixOmics` (`pls()`, `spls()`, `plsda()`, and `splsda()`), including `pls()` parsnip models fitted with the `"mixOmics"` engine, for regression and classification. Single-outcome regression models return one expression, multivariate outcomes return a named list of expressions, and the discriminant variants return a named list of class-probability expressions (softmax), for which `tidypredict_test()` is not supported. (#232)
@@ -8,6 +112,8 @@
 
 - Added support for `nnet::multinom()` multinomial log-linear models, including `multinom_reg()` parsnip models fitted with the `"nnet"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax), and `tidypredict_test()` is not supported for these multiclass models. (#232)
 
+- Added support for `nnet::nnet()` single hidden layer neural networks, including `mlp()` parsnip models fitted with the `"nnet"` engine, for regression and classification. Regression models return a single expression, and classification models return a named list of class-probability expressions, for which `tidypredict_test()` is not supported. (#232)
+
 - Added support for `sda::sda()` shrinkage discriminant analysis models, including `discrim_linear()` parsnip models fitted with the `"sda"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax), and `tidypredict_test()` is not supported for these multiclass models. (#232)
 
 - Added support for the regularized linear discriminant analysis models in `sparsediscrim` (`lda_diag()`, `lda_shrink_mean()`, `lda_shrink_cov()`, and `lda_emp_bayes_eigen()`), including `discrim_linear()` parsnip models fitted with the `"sparsediscrim"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax of the per-class discriminant scores), and `tidypredict_test()` is not supported for these multiclass models. (#232)
@@ -15,6 +121,8 @@
 - Added support for `mda::fda()` flexible discriminant analysis models fit with a linear regression method (`mda::polyreg()` with `degree = 1` or `mda::gen.ridge()`), including `discrim_linear()` parsnip models fitted with the `"mda"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax of the per-class discriminant scores), and `tidypredict_test()` is not supported for these multiclass models. (#232)
 
 - Added support for `MASS::lda()` linear discriminant analysis models, including `discrim_linear()` parsnip models fitted with the `"MASS"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax of the per-class discriminant scores), and `tidypredict_test()` is not supported for these multiclass models. (#232)
+
+- Added support for `MASS::qda()` quadratic discriminant analysis models, including `discrim_quad()` parsnip models fitted with the `"MASS"` engine. `tidypredict_fit()` returns a named list of class-probability expressions (softmax of the per-class quadratic discriminant scores), and `tidypredict_test()` is not supported for these multiclass models. (#232)
 
 - Added support for `kernlab::ksvm()` linear support vector machine models (`vanilladot` kernel), including `svm_linear()` parsnip models fitted with the `"kernlab"` engine, for regression and binary classification. Non-linear kernels and multiclass classification are not supported, and classification requires a probability model (`prob.model = TRUE`). (#232)
 
@@ -41,6 +149,26 @@
 - Added support for `linear_reg()` parsnip models fitted with the `"glm"` engine. (#232)
 
 - Added support for `quantreg::rq()` quantile regression models, including `linear_reg()` parsnip models fitted with the `"quantreg"` engine. Models fitted with multiple quantiles return one fit expression per quantile, named by the quantile level. (#232)
+
+- `tidypredict_fit()` now returns correct predictions for xgboost models whose feature values fall exactly on a split threshold. xgboost compares split thresholds as 32-bit floats, so a value such as a `wt` of 3.19 was sent down the wrong branch when the comparison was made in R's doubles. (#232)
+
+- `tidypredict_fit()` now returns correct predictions for xgboost models that have been saved and reloaded with `parse_model()` and `as_parsed_model()`. Previously every tree collapsed to a single leaf value. (#232)
+
+- `tidypredict_test()` now flags rows where the fitted value is above the model's own prediction for xgboost models. Previously only differences in one direction were reported, so real disagreements could go unnoticed. (#232)
+
+- `tidypredict_test()` now reports the maximum fit, lower, and upper differences under the correct labels, and reports absolute rather than signed differences. Previously the fit and upper values were swapped, and the fit value was omitted entirely when `include_intervals = FALSE`. (#232)
+
+- `tidypredict_test()` now reports a failure message for multiclass CatBoost models when results exceed the threshold. Previously it always claimed that all results were within the threshold, even when `alert` was `TRUE`. (#232)
+
+- `tidypredict_test()` now compares ranger models against `predict()`. Previously the comparison silently measured tidypredict's predictions against themselves and so always reported a difference of zero. (#232)
+
+- `tidypredict_test()` now reports an absolute maximum difference for glmnet models, which could previously be negative. (#232)
+
+- `tidypredict_test()` now names the model's own predictions `fit` in `raw_results` for XGBoost, LightGBM, CatBoost and h2o models, matching every other model type. The column was previously called `base`. (#232)
+
+- `tidypredict_test()` now reports `fit_diff` as a signed difference for LightGBM, CatBoost and h2o models, so the direction of the error is visible. The threshold is applied to its absolute value, as before. (#232)
+
+- `tidypredict_test()` results for classification models are now reported consistently: `fit_diff` is a 0/1 indicator, the threshold is reported as 0 since labels are compared exactly, and the message counts records that do not match rather than quoting a maximum difference. (#232)
 
 # tidypredict 1.1.0
 

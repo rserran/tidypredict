@@ -3,14 +3,25 @@
     Code
       rlang::expr_text(tf)
     Output
-      [1] "case_when(cyl <= 6 ~ case_when(cyl <= 4 ~ \"1\", .default = case_when(wt <= \n    2.875 ~ \"0\", .default = \"1\")), .default = \"0\")"
+      [1] "case_when(cyl <= 6.00000023841858 ~ case_when(cyl <= 4.00000023841858 ~ \n    \"1\", .default = case_when(wt <= 2.87500011920929 ~ \"0\", .default = \"1\")), \n    .default = \"0\")"
+
+# a model with no tree is reported clearly (#287)
+
+    Code
+      tidypredict_fit(structure(list(tree = "", levels = c("hi", "lo"), names = ""),
+      class = "C5.0"))
+    Condition
+      Error in `parse_c50_trees()`:
+      ! The model records no tree.
+      i `C50::C5.0()` writes one only when fitting succeeded.
+      i A predictor name or level containing "," or ":" is one cause.
 
 # errors on unsupported configurations
 
     Code
       tidypredict_fit(fuzzy)
     Condition
-      Error in `c50_check_supported()`:
+      Error in `tidypredict_fit()`:
       ! tidypredict does not support C5.0 models with fuzzy thresholds (`fuzzyThreshold = TRUE`).
 
 ---
@@ -18,7 +29,7 @@
     Code
       tidypredict_fit(costs)
     Condition
-      Error in `c50_check_supported()`:
+      Error in `tidypredict_fit()`:
       ! tidypredict does not support C5.0 models fitted with a cost matrix (`costs`).
 
 # rule-based models return the right output
@@ -26,7 +37,7 @@
     Code
       rlang::expr_text(tf)
     Output
-      [1] "case_when(dplyr::if_else(cyl > 6, 0.9375, 0) + dplyr::if_else(wt <= \n    2.875 & cyl > 4, 0.8, 0) >= dplyr::if_else(wt > 2.875 & cyl <= \n    6, 0.875, 0) + dplyr::if_else(cyl <= 4, 0.8461538, 0) ~ \"0\", \n    .default = \"1\")"
+      [1] "case_when(dplyr::if_else(cyl > 6.00000023841858, 0.9375, 0) + \n    dplyr::if_else(wt <= 2.87500011920929 & cyl > 4.00000023841858, \n        0.8, 0) >= dplyr::if_else(wt > 2.87500011920929 & cyl <= \n    6.00000023841858, 0.875, 0) + dplyr::if_else(cyl <= 4.00000023841858, \n    0.8461538, 0) ~ \"0\", .default = \"1\")"
 
 # boosted rule-based models are not supported
 

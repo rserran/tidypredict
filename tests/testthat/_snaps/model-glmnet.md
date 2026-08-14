@@ -5,39 +5,6 @@
     Output
       [1] "35.31378 + (cyl * -0.8714512) + (hp * -0.0101174) + (wt * -2.594437)"
 
-# formulas produces correct predictions
-
-    Code
-      tidypredict_test(glmnet::glmnet(mtcars[, -1], mtcars$mpg, family = "gaussian",
-      lambda = 1), mtcars[, -1])
-    Output
-      tidypredict test results
-      Difference threshold: 1e-12
-      
-       All results are within the difference threshold
-
----
-
-    Code
-      tidypredict_test(glmnet::glmnet(mtcars[, -8], mtcars$vs, family = "binomial",
-      lambda = 1), mtcars[, -1])
-    Output
-      tidypredict test results
-      Difference threshold: 1e-12
-      
-       All results are within the difference threshold
-
----
-
-    Code
-      tidypredict_test(glmnet::glmnet(mtcars[, -8], mtcars$vs, family = "poisson",
-      lambda = 1), mtcars[, -1])
-    Output
-      tidypredict test results
-      Difference threshold: 1e-12
-      
-       All results are within the difference threshold
-
 # errors if more than 1 penalty is selected
 
     Code
@@ -53,6 +20,33 @@
     Condition
       Error in `parse_model()`:
       ! `tidypredict_fit()` requires that there are only 1 penalty selected, 2 were provided.
+
+# rejects a model fit with an offset (#296)
+
+    Code
+      tidypredict_fit(model)
+    Condition
+      Error in `parse_model()`:
+      ! Models fit with an `offset` are not supported for glmnet.
+      i glmnet stores only a flag, not the offset values, so the prediction cannot be reproduced.
+
+---
+
+    Code
+      parse_model(model)
+    Condition
+      Error in `parse_model()`:
+      ! Models fit with an `offset` are not supported for glmnet.
+      i glmnet stores only a flag, not the offset values, so the prediction cannot be reproduced.
+
+---
+
+    Code
+      tidypredict_fit(model)
+    Condition
+      Error in `parse_model()`:
+      ! Models fit with an `offset` are not supported for glmnet.
+      i glmnet stores only a flag, not the offset values, so the prediction cannot be reproduced.
 
 # glmnet are handeld neatly with parsnip
 

@@ -12,9 +12,10 @@ Description: It parses a fitted 'R' model object, and returns a formula in
     for the final 'SQL' translation of the algorithm. It currently
     supports lm(), glm(), randomForest(), ranger(), rpart(), C5.0(),
     earth(), xgb.Booster.complete(), lgb.Booster(), catboost.Model(),
-    cubist(), ctree(), cforest(), fda(), ksvm(), lda(), sda(), lda_diag(),
-    pls(), nullmodel(), and xrf()
-    models.
+    cubist(), ctree(), cforest(), fda(), ksvm(), lda(), qda(), sda(),
+    lda_diag(),
+    pls(), nullmodel(), NaiveBayes(), naive_bayes(), nnet(), bart(),
+    bagger(), and xrf() models.
 License: MIT + file LICENSE
 URL: https://tidypredict.tidymodels.org,
     https://github.com/tidymodels/tidypredict
@@ -30,14 +31,17 @@ Imports:
     purrr,
     rlang (>= 1.1.1),
     tibble,
-    tidyr
+    tidyr,
+    utils
 Suggests:
     agua,
     aorsf,
+    baguette,
     bonsai,
     C50,
     covr,
     Cubist (>= 0.5.1),
+    dbarts,
     DBI,
     dbplyr,
     discrim,
@@ -45,6 +49,7 @@ Suggests:
     glmnet,
     h2o,
     kernlab,
+    klaR,
     LiblineaR,
     lightgbm,
     MASS,
@@ -54,6 +59,7 @@ Suggests:
     methods,
     mlbench,
     modeldata,
+    naivebayes,
     nnet,
     nycflights13,
     parsnip,

@@ -1,4 +1,5 @@
 test_that("returns the right output", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -29,6 +30,7 @@ test_that("returns the right output", {
 })
 
 test_that("tidypredict_fit produces correct predictions", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -49,13 +51,14 @@ test_that("tidypredict_fit produces correct predictions", {
   expect_equal(fit_pred, original_pred)
 })
 
-test_that("formulas produces correct predictions", {
+test_that("formulas produce correct predictions", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
 
   # regression
-  expect_snapshot(
+  expect_false(
     tidypredict_test(
       ranger::ranger(
         mpg ~ .,
@@ -66,11 +69,12 @@ test_that("formulas produces correct predictions", {
         num.threads = 2
       ),
       mtcars
-    )
+    )$alert
   )
 })
 
 test_that("split operator uses <= for left child (#189)", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -92,6 +96,7 @@ test_that("split operator uses <= for left child (#189)", {
 })
 
 test_that("predictions are averaged not summed (#190)", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -113,6 +118,7 @@ test_that("predictions are averaged not summed (#190)", {
 })
 
 test_that("produced case_when uses .default", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -133,6 +139,7 @@ test_that("produced case_when uses .default", {
 })
 
 test_that("classification models error with clear message (#191)", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -149,9 +156,37 @@ test_that("classification models error with clear message (#191)", {
   expect_snapshot(tidypredict_fit(model), error = TRUE)
 })
 
+test_that("probability and survival forests error with clear message (#301)", {
+  skip_if_not_installed("ranger")
+
+  # Neither has a `prediction` column in `treeInfo()`, so a guard reading a leaf
+  # value let both through and emitted `case_when(... ~ NULL)`.
+  model <- ranger::ranger(
+    Species ~ Sepal.Length + Sepal.Width,
+    data = iris,
+    num.trees = 3,
+    probability = TRUE,
+    seed = 123
+  )
+  expect_snapshot(tidypredict_fit(model), error = TRUE)
+  expect_snapshot(parse_model(model), error = TRUE)
+
+  skip_if_not_installed("survival")
+  df <- transform(mtcars, status = as.integer(am))
+  model <- ranger::ranger(
+    survival::Surv(mpg, status) ~ wt + disp,
+    data = df,
+    num.trees = 3,
+    seed = 123
+  )
+  expect_snapshot(tidypredict_fit(model), error = TRUE)
+  expect_snapshot(parse_model(model), error = TRUE)
+})
+
 # Tests for .extract_ranger_classprob()
 
 test_that(".extract_ranger_classprob returns correct structure", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -176,12 +211,14 @@ test_that(".extract_ranger_classprob returns correct structure", {
 })
 
 test_that(".extract_ranger_classprob errors on non-ranger model", {
+  skip_if_not_installed("ranger")
   model <- lm(mpg ~ ., data = mtcars)
 
   expect_snapshot(error = TRUE, .extract_ranger_classprob(model))
 })
 
 test_that(".extract_ranger_classprob errors without probability = TRUE", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -200,6 +237,7 @@ test_that(".extract_ranger_classprob errors without probability = TRUE", {
 })
 
 test_that(".extract_ranger_classprob works with binary classification", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -223,6 +261,7 @@ test_that(".extract_ranger_classprob works with binary classification", {
 })
 
 test_that(".extract_ranger_classprob produces correct probabilities", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -259,6 +298,7 @@ test_that(".extract_ranger_classprob produces correct probabilities", {
 })
 
 test_that(".extract_ranger_classprob works with single tree", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -284,6 +324,7 @@ test_that(".extract_ranger_classprob works with single tree", {
 # Tests for .extract_ranger_trees() (regression)
 
 test_that(".extract_ranger_trees returns correct structure", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -305,12 +346,14 @@ test_that(".extract_ranger_trees returns correct structure", {
 })
 
 test_that(".extract_ranger_trees errors on non-ranger model", {
+  skip_if_not_installed("ranger")
   model <- lm(mpg ~ ., data = mtcars)
 
   expect_snapshot(error = TRUE, .extract_ranger_trees(model))
 })
 
 test_that(".extract_ranger_trees errors on classification model", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -328,6 +371,7 @@ test_that(".extract_ranger_trees errors on classification model", {
 })
 
 test_that(".extract_ranger_trees produces correct predictions when averaged", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -355,6 +399,7 @@ test_that(".extract_ranger_trees produces correct predictions when averaged", {
 # Backwards compatibility tests for v2 parsed models
 
 test_that("v2 parsed ranger model can be loaded and used", {
+  skip_if_not_installed("ranger")
   pm <- readRDS(test_path("backwards-compat", "ranger-v2-parsed.rds"))
 
   expect_equal(pm$general$version, 2)
@@ -369,6 +414,7 @@ test_that("v2 parsed ranger model can be loaded and used", {
 })
 
 test_that("v2 parsed ranger model produces expected predictions", {
+  skip_if_not_installed("ranger")
   pm <- readRDS(test_path("backwards-compat", "ranger-v2-parsed.rds"))
 
   fit <- tidypredict_fit(pm)
@@ -381,6 +427,7 @@ test_that("v2 parsed ranger model produces expected predictions", {
 })
 
 test_that("v2 parsed classification model errors", {
+  skip_if_not_installed("ranger")
   pm <- readRDS(test_path("backwards-compat", "ranger-v2-classification.rds"))
 
   expect_equal(pm$general$version, 2)
@@ -391,6 +438,7 @@ test_that("v2 parsed classification model errors", {
 })
 
 test_that("legacy get_ra_trees extracts correct structure", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -423,6 +471,7 @@ test_that("legacy get_ra_trees extracts correct structure", {
 })
 
 test_that("legacy get_ra_tree extracts single tree", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -445,6 +494,7 @@ test_that("legacy get_ra_tree extracts single tree", {
 })
 
 test_that("legacy get_child_info builds parent map", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -467,6 +517,7 @@ test_that("legacy get_child_info builds parent map", {
 })
 
 test_that("legacy get_ra_path handles stump trees", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -491,6 +542,7 @@ test_that("legacy get_ra_path handles stump trees", {
 })
 
 test_that("legacy get_ra_path with default_op = TRUE", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -526,6 +578,7 @@ test_that("legacy get_ra_path with default_op = TRUE", {
 })
 
 test_that("parse_model.ranger errors on classification", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -543,6 +596,7 @@ test_that("parse_model.ranger errors on classification", {
 })
 
 test_that("legacy get_ra_tree converts factor predictions to character", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -566,6 +620,7 @@ test_that("legacy get_ra_tree converts factor predictions to character", {
 })
 
 test_that("legacy get_ra_tree handles probability predictions", {
+  skip_if_not_installed("ranger")
   skip_on_cran()
   skip_on_os("windows")
   skip_on_os("linux")
@@ -588,4 +643,145 @@ test_that("legacy get_ra_tree handles probability predictions", {
   # With probability = TRUE, nodes should have probs field
   expect_true("probs" %in% names(tree[[1]]))
   expect_true("prob" %in% names(tree[[1]]))
+})
+
+test_that("a missing predictor takes the left branch, matching predict() (#294)", {
+  skip_if_not_installed("ranger")
+
+  set.seed(1)
+  n <- 300
+  df <- data.frame(x = rnorm(n), z = rnorm(n), w = rnorm(n))
+  df$y <- 2 * df$x - df$z + rnorm(n)
+
+  new_df <- df
+  set.seed(4)
+  for (col in c("x", "z", "w")) {
+    new_df[[col]][sample(n, 50)] <- NA_real_
+  }
+  new_df[1:5, c("x", "z", "w")] <- NA_real_
+
+  model <- ranger::ranger(y ~ x + z + w, data = df, num.trees = 20, seed = 1)
+
+  # `ranger` compares as `value > splitval`, which a missing value fails, so it
+  # goes the same way as a value at or below the split point.
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), new_df),
+    predict(model, new_df)$predictions
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(parse_model(model)), new_df),
+    predict(model, new_df)$predictions
+  )
+})
+
+test_that("factor splits match predict() in every mode (#283)", {
+  skip_if_not_installed("ranger")
+
+  set.seed(1)
+  df <- transform(mtcars, gear = factor(gear), carb = factor(carb))
+
+  for (mode in c("ignore", "order", "partition")) {
+    set.seed(9)
+    model <- ranger::ranger(
+      mpg ~ wt + gear + carb,
+      data = df,
+      num.trees = 10,
+      respect.unordered.factors = mode
+    )
+    base <- predict(model, df)$predictions
+
+    expect_equal(rlang::eval_tidy(tidypredict_fit(model), df), base)
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(parse_model(model)), df),
+      base
+    )
+  }
+})
+
+test_that("ordered factor splits match predict() (#283)", {
+  skip_if_not_installed("ranger")
+
+  set.seed(1)
+  df <- transform(mtcars, gear = factor(gear, ordered = TRUE))
+  set.seed(9)
+  model <- ranger::ranger(mpg ~ wt + gear, data = df, num.trees = 10)
+  base <- predict(model, df)$predictions
+
+  expect_equal(rlang::eval_tidy(tidypredict_fit(model), df), base)
+  expect_equal(rlang::eval_tidy(tidypredict_fit(parse_model(model)), df), base)
+})
+
+test_that("a partition split lists the levels going right (#283)", {
+  skip_if_not_installed("ranger")
+
+  # "1,3" names the levels going right, so the left set is the complement
+  split <- ranger_split_info("f", "1,3", c("a", "b", "c", "d"), FALSE)
+
+  expect_true(split$is_categorical)
+  expect_equal(unlist(split$vals), c("b", "d"))
+  # A missing value is routed as though it were the first level
+  expect_equal(split$missing_level, "a")
+})
+
+test_that("an ordered split names a position in the stored levels (#283)", {
+  skip_if_not_installed("ranger")
+
+  split <- ranger_split_info("f", 2.5, c("a", "b", "c", "d"), TRUE)
+
+  expect_true(split$is_categorical)
+  expect_equal(unlist(split$vals), c("a", "b"))
+})
+
+test_that("missing factor values match predict() (#283)", {
+  skip_if_not_installed("ranger")
+
+  set.seed(1)
+  df <- transform(mtcars, gear = factor(gear), carb = factor(carb))
+
+  for (mode in c("ignore", "order", "partition")) {
+    set.seed(9)
+    model <- ranger::ranger(
+      mpg ~ wt + gear + carb,
+      data = df,
+      num.trees = 10,
+      respect.unordered.factors = mode
+    )
+
+    nd <- df
+    nd$gear[1:5] <- NA
+    nd$carb[4:8] <- NA
+    nd$wt[9:11] <- NA
+
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(model), nd),
+      predict(model, nd)$predictions
+    )
+  }
+})
+
+test_that("factor splits match predict() for a probability forest (#283)", {
+  skip_if_not_installed("ranger")
+
+  set.seed(1)
+  df <- transform(
+    mtcars,
+    gear = factor(gear),
+    am = factor(am, labels = c("auto", "manual"))
+  )
+  set.seed(9)
+  model <- ranger::ranger(
+    am ~ wt + gear,
+    data = df,
+    num.trees = 10,
+    probability = TRUE,
+    respect.unordered.factors = "partition"
+  )
+
+  trees <- .extract_ranger_classprob(model)
+  probs <- sapply(trees, function(exprs) {
+    rowMeans(sapply(exprs, \(e) rlang::eval_tidy(e, df)))
+  })
+  base <- predict(model, df)$predictions[, colnames(probs)]
+
+  expect_equal(probs, base, ignore_attr = "dimnames")
 })
