@@ -35,21 +35,28 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-model-list" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Model list</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-model-list">
-<li><a class="dropdown-item" href="../articles/lm.html">Linear Regression - lm()</a></li>
+<li><a class="dropdown-item" href="../articles/models.html">All supported models</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/lm.html">Linear Regression - lm()</a></li>
     <li><a class="dropdown-item" href="../articles/glm.html">Generalized Regression - glm()</a></li>
     <li><a class="dropdown-item" href="../articles/glmnet.html">Regularized Regression - glmnet()</a></li>
     <li><a class="dropdown-item" href="../articles/multinom.html">Multinomial Regression - multinom()</a></li>
     <li><a class="dropdown-item" href="../articles/fda.html">Flexible Discriminant Analysis - fda()</a></li>
     <li><a class="dropdown-item" href="../articles/lda.html">Linear Discriminant Analysis - lda()</a></li>
+    <li><a class="dropdown-item" href="../articles/qda.html">Quadratic Discriminant Analysis - qda()</a></li>
     <li><a class="dropdown-item" href="../articles/sda.html">Shrinkage Discriminant Analysis - sda()</a></li>
     <li><a class="dropdown-item" href="../articles/sparsediscrim.html">Regularized Discriminant Analysis - sparsediscrim</a></li>
+    <li><a class="dropdown-item" href="../articles/naivebayes.html">Naive Bayes - NaiveBayes()</a></li>
     <li><a class="dropdown-item" href="../articles/mixOmics.html">Partial Least Squares - mixOmics</a></li>
+    <li><a class="dropdown-item" href="../articles/nnet.html">Neural Network - nnet()</a></li>
     <li><a class="dropdown-item" href="../articles/ranger.html">Random Forest - Ranger - ranger()</a></li>
     <li><a class="dropdown-item" href="../articles/rf.html">Random Forest - randomForest()</a></li>
     <li><a class="dropdown-item" href="../articles/partykit.html">Random Forest - partykit - cforest()</a></li>
     <li><a class="dropdown-item" href="../articles/aorsf.html">Oblique Random Forest - aorsf - orsf()</a></li>
     <li><a class="dropdown-item" href="../articles/rpart.html">Decision Tree - rpart()</a></li>
     <li><a class="dropdown-item" href="../articles/C5.0.html">Decision Tree - C5.0()</a></li>
+    <li><a class="dropdown-item" href="../articles/bart.html">BART - bart()</a></li>
+    <li><a class="dropdown-item" href="../articles/bagging.html">Bagged Trees - bagger()</a></li>
     <li><a class="dropdown-item" href="../articles/mars.html">MARS - earth()</a></li>
     <li><a class="dropdown-item" href="../articles/cubist.html">Cubist - cubist()</a></li>
     <li><a class="dropdown-item" href="../articles/xgboost.html">XGboost - xgb.Booster.complete()</a></li>
@@ -206,15 +213,15 @@ well:</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/tidypredict_fit.html">tidypredict_fit</a></span><span class="op">(</span><span class="va">model</span><span class="op">)</span></span>
-<span><span class="co">#&gt; 1 - 1/(1 + exp(2.91352600741336 + (ifelse(age &gt; 32, age - 32, </span></span>
-<span><span class="co">#&gt;     0) * -0.0375714917713104) + (ifelse(pclass == "2nd", 1, 0) * </span></span>
-<span><span class="co">#&gt;     ifelse(sex == "male", 1, 0) * -1.76809447811121) + (ifelse(pclass == </span></span>
-<span><span class="co">#&gt;     "3rd", 1, 0) * -5.03005595780694) + (ifelse(pclass == "3rd", </span></span>
-<span><span class="co">#&gt;     1, 0) * ifelse(sibsp &lt; 4, 4 - sibsp, 0) * 0.618652747659846) + </span></span>
+<span><span class="co">#&gt; 1/(1 + exp(-(2.91352600741336 + (ifelse(age &gt; 32, age - 32, 0) * </span></span>
+<span><span class="co">#&gt;     -0.0375714917713104) + (ifelse(pclass == "2nd", 1, 0) * ifelse(sex == </span></span>
+<span><span class="co">#&gt;     "male", 1, 0) * -1.76809447811121) + (ifelse(pclass == "3rd", </span></span>
+<span><span class="co">#&gt;     1, 0) * -5.03005595780694) + (ifelse(pclass == "3rd", 1, </span></span>
+<span><span class="co">#&gt;     0) * ifelse(sibsp &lt; 4, 4 - sibsp, 0) * 0.618652747659846) + </span></span>
 <span><span class="co">#&gt;     (ifelse(pclass == "3rd", 1, 0) * ifelse(sex == "male", 1, </span></span>
 <span><span class="co">#&gt;         0) * 1.22269536265148) + (ifelse(sex == "male", 1, 0) * </span></span>
 <span><span class="co">#&gt;     -3.18562450248531) + (ifelse(sex == "male", 1, 0) * ifelse(age &lt; </span></span>
-<span><span class="co">#&gt;     16, 16 - age, 0) * 0.241814028713263)))</span></span></code></pre></div>
+<span><span class="co">#&gt;     16, 16 - age, 0) * 0.241814028713263))))</span></span></code></pre></div>
 <p>The spec sets the <code>is_glm</code> entry to 1, as well as the
 <code>family</code> and <code>link</code> entries.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">

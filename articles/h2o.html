@@ -35,21 +35,28 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-model-list" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Model list</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-model-list">
-<li><a class="dropdown-item" href="../articles/lm.html">Linear Regression - lm()</a></li>
+<li><a class="dropdown-item" href="../articles/models.html">All supported models</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/lm.html">Linear Regression - lm()</a></li>
     <li><a class="dropdown-item" href="../articles/glm.html">Generalized Regression - glm()</a></li>
     <li><a class="dropdown-item" href="../articles/glmnet.html">Regularized Regression - glmnet()</a></li>
     <li><a class="dropdown-item" href="../articles/multinom.html">Multinomial Regression - multinom()</a></li>
     <li><a class="dropdown-item" href="../articles/fda.html">Flexible Discriminant Analysis - fda()</a></li>
     <li><a class="dropdown-item" href="../articles/lda.html">Linear Discriminant Analysis - lda()</a></li>
+    <li><a class="dropdown-item" href="../articles/qda.html">Quadratic Discriminant Analysis - qda()</a></li>
     <li><a class="dropdown-item" href="../articles/sda.html">Shrinkage Discriminant Analysis - sda()</a></li>
     <li><a class="dropdown-item" href="../articles/sparsediscrim.html">Regularized Discriminant Analysis - sparsediscrim</a></li>
+    <li><a class="dropdown-item" href="../articles/naivebayes.html">Naive Bayes - NaiveBayes()</a></li>
     <li><a class="dropdown-item" href="../articles/mixOmics.html">Partial Least Squares - mixOmics</a></li>
+    <li><a class="dropdown-item" href="../articles/nnet.html">Neural Network - nnet()</a></li>
     <li><a class="dropdown-item" href="../articles/ranger.html">Random Forest - Ranger - ranger()</a></li>
     <li><a class="dropdown-item" href="../articles/rf.html">Random Forest - randomForest()</a></li>
     <li><a class="dropdown-item" href="../articles/partykit.html">Random Forest - partykit - cforest()</a></li>
     <li><a class="dropdown-item" href="../articles/aorsf.html">Oblique Random Forest - aorsf - orsf()</a></li>
     <li><a class="dropdown-item" href="../articles/rpart.html">Decision Tree - rpart()</a></li>
     <li><a class="dropdown-item" href="../articles/C5.0.html">Decision Tree - C5.0()</a></li>
+    <li><a class="dropdown-item" href="../articles/bart.html">BART - bart()</a></li>
+    <li><a class="dropdown-item" href="../articles/bagging.html">Bagged Trees - bagger()</a></li>
     <li><a class="dropdown-item" href="../articles/mars.html">MARS - earth()</a></li>
     <li><a class="dropdown-item" href="../articles/cubist.html">Cubist - cubist()</a></li>
     <li><a class="dropdown-item" href="../articles/xgboost.html">XGboost - xgb.Booster.complete()</a></li>
@@ -1068,11 +1075,11 @@ together.</p>
 <span>  <span class="fu"><a href="https://generics.r-lib.org/reference/fit.html" class="external-link">fit</a></span><span class="op">(</span><span class="va">mpg</span> <span class="op">~</span> <span class="va">wt</span> <span class="op">+</span> <span class="va">hp</span> <span class="op">+</span> <span class="va">disp</span>, data <span class="op">=</span> <span class="va">mtcars</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/tidypredict_fit.html">tidypredict_fit</a></span><span class="op">(</span><span class="va">model_rules</span><span class="op">)</span></span>
-<span><span class="co">#&gt; 33.6849250683785 + (-2.98365666456685 * wt + case_when(wt &lt; 2.25968027114868 ~ </span></span>
-<span><span class="co">#&gt;     1.26925770017183, .default = 0) + case_when(disp &lt; 101.545547485352 ~ </span></span>
-<span><span class="co">#&gt;     0.0549192265979634, .default = 0) + case_when(disp &lt; 97.7222671508789 &amp; </span></span>
-<span><span class="co">#&gt;     hp &lt; 118 ~ 0.0549192265954712, .default = 0) + -0.0243188365426765 * </span></span>
-<span><span class="co">#&gt;     hp + -0.00296051728171434 * disp)</span></span></code></pre></div>
+<span><span class="co">#&gt; 33.6849250683784 + (-2.98365666456684 * wt + case_when(wt &lt; 2.25968027114868 ~ </span></span>
+<span><span class="co">#&gt;     1.26925770017168, .default = 0) + case_when(disp &lt; 101.545547485352 ~ </span></span>
+<span><span class="co">#&gt;     0.0549192265978302, .default = 0) + case_when(disp &lt; 97.7222671508789 &amp; </span></span>
+<span><span class="co">#&gt;     hp &lt; 118 ~ 0.0549192265954161, .default = 0) + -0.0243188365426762 * </span></span>
+<span><span class="co">#&gt;     hp + -0.00296051728171422 * disp)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="limitations">Limitations<a class="anchor" aria-label="anchor" href="#limitations"></a>

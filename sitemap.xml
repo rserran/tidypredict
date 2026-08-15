@@ -1,10 +1,13 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://tidypredict.tidymodels.org/404.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/CODE_OF_CONDUCT.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/CONTRIBUTING.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/LICENSE-text.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/LICENSE.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/C5.0.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/aorsf.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/articles/bagging.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/articles/bart.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/catboost.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/cubist.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/fda.html</loc></url>
@@ -18,10 +21,14 @@
 <url><loc>https://tidypredict.tidymodels.org/articles/lm.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/mars.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/mixOmics.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/articles/models.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/multinom.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/articles/naivebayes.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/articles/nnet.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/non-r.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/nullmodel.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/partykit.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/articles/qda.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/ranger.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/regression.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/articles/rf.html</loc></url>
@@ -44,6 +51,10 @@
 <url><loc>https://tidypredict.tidymodels.org/reference/dot-build_linear_pred.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/dot-build_nested_case_when_tree.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/dot-c50_tree_info_full.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/reference/dot-extract_bagger_classprob.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/reference/dot-extract_bagger_trees.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/reference/dot-extract_bart_scaling.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/reference/dot-extract_bart_trees.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/dot-extract_catboost_trees.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/dot-extract_earth_multiclass.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/dot-extract_glmnet_multiclass.html</loc></url>
@@ -72,6 +83,7 @@
 <url><loc>https://tidypredict.tidymodels.org/reference/tidypredict-package.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/tidypredict_fit.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/tidypredict_interval.html</loc></url>
+<url><loc>https://tidypredict.tidymodels.org/reference/tidypredict_save.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/tidypredict_sql.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/tidypredict_sql_interval.html</loc></url>
 <url><loc>https://tidypredict.tidymodels.org/reference/tidypredict_test.html</loc></url>
