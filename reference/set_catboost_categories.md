@@ -41,7 +41,7 @@ features are handled automatically and this function is not required.
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
+if (FALSE) { # rlang::is_installed("catboost")
 # For raw CatBoost models with categorical features:
 pm <- parse_model(catboost_model)
 pm <- set_catboost_categories(pm, catboost_model, training_data)
@@ -49,5 +49,5 @@ tidypredict_fit(pm)
 
 # For parsnip/bonsai models, this is not needed:
 # tidypredict_fit(parsnip_model_fit)  # works automatically
-} # }
+}
 ```

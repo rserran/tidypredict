@@ -23,7 +23,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">tidypredict</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -40,6 +40,8 @@
     <li><a class="dropdown-item" href="../articles/lm.html">Linear Regression - lm()</a></li>
     <li><a class="dropdown-item" href="../articles/glm.html">Generalized Regression - glm()</a></li>
     <li><a class="dropdown-item" href="../articles/glmnet.html">Regularized Regression - glmnet()</a></li>
+    <li><a class="dropdown-item" href="../articles/glm.html#liblinear">Regularized Regression - LiblineaR()</a></li>
+    <li><a class="dropdown-item" href="../articles/lm.html#quantile-regression">Quantile Regression - rq()</a></li>
     <li><a class="dropdown-item" href="../articles/multinom.html">Multinomial Regression - multinom()</a></li>
     <li><a class="dropdown-item" href="../articles/fda.html">Flexible Discriminant Analysis - fda()</a></li>
     <li><a class="dropdown-item" href="../articles/lda.html">Linear Discriminant Analysis - lda()</a></li>
@@ -49,6 +51,7 @@
     <li><a class="dropdown-item" href="../articles/naivebayes.html">Naive Bayes - NaiveBayes()</a></li>
     <li><a class="dropdown-item" href="../articles/mixOmics.html">Partial Least Squares - mixOmics</a></li>
     <li><a class="dropdown-item" href="../articles/nnet.html">Neural Network - nnet()</a></li>
+    <li><a class="dropdown-item" href="../articles/ksvm.html">Support Vector Machine - kernlab - ksvm()</a></li>
     <li><a class="dropdown-item" href="../articles/ranger.html">Random Forest - Ranger - ranger()</a></li>
     <li><a class="dropdown-item" href="../articles/rf.html">Random Forest - randomForest()</a></li>
     <li><a class="dropdown-item" href="../articles/partykit.html">Random Forest - partykit - cforest()</a></li>
@@ -63,6 +66,8 @@
     <li><a class="dropdown-item" href="../articles/lightgbm.html">LightGBM - lgb.Booster()</a></li>
     <li><a class="dropdown-item" href="../articles/catboost.html">CatBoost - catboost.Model()</a></li>
     <li><a class="dropdown-item" href="../articles/h2o.html">H2O GBM - H2OModel</a></li>
+    <li><a class="dropdown-item" href="../articles/mboost.html">Model-based Boosting - mboost - blackboost()</a></li>
+    <li><a class="dropdown-item" href="../articles/xrf.html">RuleFit - xrf - xrf()</a></li>
     <li><a class="dropdown-item" href="../articles/nullmodel.html">Null Model - nullmodel()</a></li>
   </ul>
 </li>
@@ -445,6 +450,31 @@ or <code>"klaR"</code>
 </table>
 </div>
 <div class="section level2">
+<h2 id="support-vector-machines-and-non-syntactic-names">Support vector machines and non-syntactic names<a class="anchor" aria-label="anchor" href="#support-vector-machines-and-non-syntactic-names"></a>
+</h2>
+<p><code><a href="https://rdrr.io/pkg/kernlab/man/ksvm.html" class="external-link">kernlab::ksvm()</a></code> collects its model matrix with
+<code>data.frame(y, x)</code>, whose default <code>check.names</code>
+runs the column names through <code>make.names(unique = TRUE)</code>. A
+predictor named <code>a:b</code> is therefore stored as
+<code>a.b</code>, and two predictors that mangle to the same name are
+told apart with a <code>.1</code> suffix. The original names are not
+recorded anywhere on the fitted object.</p>
+<p>On the formula interface there is a <code>terms</code> object to
+compare the stored names against, so <code><a href="../reference/parse_model.html">parse_model()</a></code> detects
+the ambiguity and aborts. On the matrix interface,
+<code>ksvm(x, y)</code>, there is no <code>terms</code> object, and the
+mangling cannot be detected at all: every name <code><a href="https://rdrr.io/r/base/make.names.html" class="external-link">make.names()</a></code>
+can produce is also a name it leaves alone, so a stored <code>a.b</code>
+is indistinguishable from a model that genuinely had a column named
+<code>a.b</code> and is correct. <code><a href="../reference/tidypredict_fit.html">tidypredict_fit()</a></code>
+therefore takes the stored names at face value, and a matrix model
+fitted with a non-syntactic column name yields a formula that refers to
+a column your data does not have.</p>
+<p>Give the matrix columns syntactic names before fitting, or use the
+formula interface, which will tell you when it cannot recover a
+name.</p>
+</div>
+<div class="section level2">
 <h2 id="intervals">Intervals<a class="anchor" aria-label="anchor" href="#intervals"></a>
 </h2>
 <p><code><a href="../reference/tidypredict_interval.html">tidypredict_interval()</a></code> and
@@ -470,7 +500,7 @@ outside R can be used here.</p>
    </div>
   <footer><div class="container">
   <div class="pkgdown-footer-left">
-  <p>Developed by Emil Hvitfeldt, Edgar Ruiz, <a href="https://github.com/topepo" class="external-link">Max Kuhn</a>.</p>
+  <p>Developed by Emil Hvitfeldt, Edgar Ruiz, <a href="https://github.com/topepo" class="external-link">Max Kuhn</a>, <a href="https://www.posit.co" class="external-link"><img src="https://www.tidyverse.org/posit-logo.svg" alt="Posit" height="16" width="62" style="margin-bottom: 3px;"></a>.</p>
 </div>
 
 <div class="pkgdown-footer-right">

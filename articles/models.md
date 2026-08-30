@@ -66,6 +66,32 @@ route, not that it is known to fail.
 | H2O gradient boosting | [`h2o::h2o.gbm()`](https://rdrr.io/pkg/h2o/man/h2o.gbm.html) | `boost_tree(engine = "h2o_gbm")`, via agua | [article](https://tidypredict.tidymodels.org/articles/h2o.md) |
 | H2O RuleFit | [`h2o::h2o.rulefit()`](https://rdrr.io/pkg/h2o/man/h2o.rulefit.html) | `rule_fit(engine = "h2o")`, via agua | [article](https://tidypredict.tidymodels.org/articles/h2o.md) |
 
+## Support vector machines and non-syntactic names
+
+[`kernlab::ksvm()`](https://rdrr.io/pkg/kernlab/man/ksvm.html) collects
+its model matrix with `data.frame(y, x)`, whose default `check.names`
+runs the column names through `make.names(unique = TRUE)`. A predictor
+named `a:b` is therefore stored as `a.b`, and two predictors that mangle
+to the same name are told apart with a `.1` suffix. The original names
+are not recorded anywhere on the fitted object.
+
+On the formula interface there is a `terms` object to compare the stored
+names against, so
+[`parse_model()`](https://tidypredict.tidymodels.org/reference/parse_model.md)
+detects the ambiguity and aborts. On the matrix interface, `ksvm(x, y)`,
+there is no `terms` object, and the mangling cannot be detected at all:
+every name [`make.names()`](https://rdrr.io/r/base/make.names.html) can
+produce is also a name it leaves alone, so a stored `a.b` is
+indistinguishable from a model that genuinely had a column named `a.b`
+and is correct.
+[`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md)
+therefore takes the stored names at face value, and a matrix model
+fitted with a non-syntactic column name yields a formula that refers to
+a column your data does not have.
+
+Give the matrix columns syntactic names before fitting, or use the
+formula interface, which will tell you when it cannot recover a name.
+
 ## Intervals
 
 [`tidypredict_interval()`](https://tidypredict.tidymodels.org/reference/tidypredict_interval.md)

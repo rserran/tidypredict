@@ -1,18 +1,19 @@
-# catboost models
+# CatBoost models
 
 | Function | Works |
 |----|----|
-| [`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md), [`tidypredict_sql()`](https://tidypredict.tidymodels.org/reference/tidypredict_sql.md), [`parse_model()`](https://tidypredict.tidymodels.org/reference/parse_model.md) |  |
-| [`tidypredict_to_column()`](https://tidypredict.tidymodels.org/reference/tidypredict_to_column.md) |  |
-| [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md) |  |
-| [`tidypredict_interval()`](https://tidypredict.tidymodels.org/reference/tidypredict_interval.md), [`tidypredict_sql_interval()`](https://tidypredict.tidymodels.org/reference/tidypredict_sql_interval.md) |  |
-| `parsnip` |  |
+| [`tidypredict_fit()`](https://tidypredict.tidymodels.org/reference/tidypredict_fit.md), [`tidypredict_sql()`](https://tidypredict.tidymodels.org/reference/tidypredict_sql.md), [`parse_model()`](https://tidypredict.tidymodels.org/reference/parse_model.md) | ✔ |
+| [`tidypredict_to_column()`](https://tidypredict.tidymodels.org/reference/tidypredict_to_column.md) | ✔ |
+| [`tidypredict_test()`](https://tidypredict.tidymodels.org/reference/tidypredict_test.md) | ✔ |
+| [`tidypredict_interval()`](https://tidypredict.tidymodels.org/reference/tidypredict_interval.md), [`tidypredict_sql_interval()`](https://tidypredict.tidymodels.org/reference/tidypredict_sql_interval.md) | ✗ |
+| `parsnip` | ✔ |
 
 ## `tidypredict_` functions
 
 ``` r
 
 library(catboost)
+
 # Prepare data
 X <- data.matrix(mtcars[, c("mpg", "cyl", "disp")])
 y <- mtcars$hp
@@ -36,31 +37,66 @@ model <- catboost.train(
 )
 ```
 
-- Create the R formula `r tidypredict_fit(model)`
+- Create the R formula
 
-- Add the prediction to the original table \`\`\`r library(dplyr)
+  ``` r
 
-mtcars %\>% tidypredict_to_column(model) %\>% glimpse() \`\`\`
+  tidypredict_fit(model)
+  ```
 
-- Confirm that `tidypredict` results match to the model’s
+- Add the prediction to the original table
+
+  ``` r
+
+  library(dplyr)
+
+  mtcars %>%
+    tidypredict_to_column(model) %>%
+    glimpse()
+  ```
+
+- Confirm that `tidypredict` results match the model’s
   [`predict()`](https://rdrr.io/r/stats/predict.html) results. The
   `xg_df` argument expects the matrix data set.
-  `r tidypredict_test(model, xg_df = X)`
+
+  ``` r
+
+  tidypredict_test(model, xg_df = X)
+  ```
 
 ## Supported objectives
 
 CatBoost supports many objective functions. The following objectives are
 supported by `tidypredict`:
 
+`tidypredict` always returns predictions on the response scale, so the
+link implied by the objective is inverted for you. This does not always
+agree with `catboost.predict()`, whose default
+`prediction_type = "RawFormulaVal"` returns the untransformed score. The
+equivalent `catboost.predict()` call is listed for each group below.
+
 ### Regression objectives (identity transform)
+
+Equivalent to `prediction_type = "RawFormulaVal"`.
 
 - `RMSE` (default)
 - `MAE`
 - `Quantile`
 - `MAPE`
+- `Huber`
+- `LogCosh`
+- `Expectile`
+
+### Log-link regression objectives (exponential transform)
+
+Equivalent to `prediction_type = "Exponent"`.
+
 - `Poisson`
+- `Tweedie`
 
 ### Binary classification (sigmoid transform)
+
+Equivalent to `prediction_type = "Probability"`.
 
 - `Logloss`
 - `CrossEntropy`
@@ -139,9 +175,9 @@ tidypredict_test(model_multi, xg_df = X_multi)
 
 CatBoost models can use categorical features with one-hot encoding.
 
-### With parsnip/bonsai (recommended)
+### With parsnip and bonsai (recommended)
 
-When using parsnip/bonsai, categorical features are handled
+When using parsnip and bonsai, categorical features are handled
 automatically:
 
 ``` r
@@ -171,6 +207,12 @@ For raw CatBoost models, you need to manually establish the
 hash-to-category mapping:
 
 ``` r
+
+df_cat <- data.frame(
+  num_feat = mtcars$mpg,
+  cat_feat = factor(ifelse(mtcars$am == 1, "manual", "auto")),
+  target = mtcars$hp
+)
 
 pool_cat <- catboost.load_pool(
   df_cat[, c("num_feat", "cat_feat")],
@@ -210,7 +252,7 @@ str(pm, 2)
 
 ``` r
 
-str(pm$trees[1])
+str(pm$trees[1], 2)
 ```
 
 ## Limitations
