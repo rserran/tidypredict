@@ -5,12 +5,28 @@
     Output
       [1] "1.520331147866 + (wt * -0.372988616484) + (cyl * 0.013885491477)"
 
-# we get better error from QR decomposition issues (#124)
+# an ordered factor is rejected
 
     Code
-      tidypredict::tidypredict_fit(lm_fit)
+      tidypredict_fit(lm(y ~ x + g, data = df))
     Condition
-      Error in `parse_model()`:
-      x Unable to calculate inverse of QR decomposition.
-      i This is likely happening because the predictors contain a linear combination of predictors. Please remove and try again.
+      Error in `acceptable_lm()`:
+      ! The treatment contrast is the only one supported at this time. Field(s) with an invalid contrast are: "g".
+
+---
+
+    Code
+      tidypredict_fit(glm(y ~ x + g, data = df))
+    Condition
+      Error in `acceptable_lm()`:
+      ! The treatment contrast is the only one supported at this time. Field(s) with an invalid contrast are: "g".
+
+# prediction intervals need a QR decomposition (#308)
+
+    Code
+      tidypredict_interval(pm)
+    Condition
+      Error in `tidypredict_interval()`:
+      x Unable to calculate the inverse of the QR decomposition.
+      i Prediction intervals are not available for this model, but `tidypredict_fit()` is.
 

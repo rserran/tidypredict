@@ -8,6 +8,23 @@ test_that("cforest regression predictions match", {
   expect_false(tidypredict_test(model, df = mtcars)$alert)
 })
 
+test_that("gettree() is reached without tripping partykit's method shim", {
+  skip_if_not_installed("partykit")
+
+  set.seed(1)
+  model <- partykit::cforest(mpg ~ wt + cyl, data = mtcars, ntree = 2)
+
+  # partykit 1.3-0's shim errors if the generic is called as
+  # `partykit::gettree()`, and warns if it is reached under any name other than
+  # `gettree`. Assert both: no condition of either kind.
+  expect_no_error(cforest_gettree(model, 1))
+  expect_no_warning(cforest_gettree(model, 1))
+  expect_s3_class(cforest_gettree(model, 1), "party")
+
+  expect_no_warning(tidypredict_fit(model))
+  expect_no_warning(parse_model(model))
+})
+
 test_that("terminal nodes use in-bag weighted means, not unweighted means", {
   skip_if_not_installed("partykit")
 
@@ -53,6 +70,7 @@ test_that("cforest works with categorical predictors", {
 })
 
 test_that("cforest supports SQL", {
+  skip_if_not_installed("dbplyr")
   skip_if_not_installed("partykit")
 
   set.seed(1)
@@ -101,6 +119,82 @@ test_that("classification errors with clear message", {
 
   expect_snapshot(error = TRUE, tidypredict_fit(model))
   expect_snapshot(error = TRUE, parse_model(model))
+})
+
+test_that("awkward factor level names match predict()", {
+  skip_if_not_installed("partykit")
+
+  # An unused level, a level holding a `:`, and a level whose name is also a
+  # column in the data all break a parser that splits level names by hand.
+  set.seed(1)
+  df <- mtcars
+  df$g <- factor(
+    c("a:b", "wt", "c d")[df$cyl / 2 - 1],
+    levels = c("a:b", "wt", "c d", "unused")
+  )
+  model <- partykit::cforest(mpg ~ g + wt, data = df, ntree = 20)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    as.numeric(predict(model, newdata = df, type = "response"))
+  )
+})
+
+test_that("ordered factor predictors match predict()", {
+  skip_if_not_installed("partykit")
+
+  set.seed(1)
+  df <- transform(mtcars, gear = factor(gear, ordered = TRUE))
+  model <- partykit::cforest(mpg ~ gear + wt, data = df, ntree = 20)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    as.numeric(predict(model, newdata = df, type = "response"))
+  )
+})
+
+test_that("a forest of stumps matches predict()", {
+  skip_if_not_installed("partykit")
+
+  set.seed(1)
+  model <- partykit::cforest(
+    mpg ~ wt + cyl,
+    data = mtcars,
+    ntree = 10,
+    control = partykit::ctree_control(mincriterion = 0.99999999)
+  )
+
+  # Every tree is root-only, so the forest averages ten scalars into one.
+  fit <- rlang::eval_tidy(tidypredict_fit(model), mtcars)
+  expect_length(fit, 1)
+  expect_equal(
+    rep(fit, nrow(mtcars)),
+    as.numeric(predict(model, newdata = mtcars, type = "response"))
+  )
+})
+
+test_that("a constant outcome matches predict()", {
+  skip_if_not_installed("partykit")
+
+  set.seed(1)
+  df <- transform(mtcars, const = 5)
+  model <- partykit::cforest(const ~ wt + cyl, data = df, ntree = 10)
+
+  fit <- rlang::eval_tidy(tidypredict_fit(model), df)
+  expect_length(fit, 1)
+  expect_equal(
+    rep(fit, nrow(df)),
+    as.numeric(predict(model, newdata = df, type = "response"))
+  )
+})
+
+test_that("training data containing NA has no stable reference", {
+  skip_if_not_installed("partykit")
+  skip(paste(
+    "`cforest()` resolves a training row's missing split value by sampling,",
+    "so `predict()` returns a different answer on each call even for complete",
+    "newdata. There is no value to assert against."
+  ))
 })
 
 test_that("a missing predictor gives NA rather than a random draw (#294)", {

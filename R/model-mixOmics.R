@@ -20,8 +20,12 @@ tidypredict_fit.mixo_plsda <- function(model) tidypredict_fit_mixomics(model)
 #' @export
 tidypredict_fit.mixo_splsda <- function(model) tidypredict_fit_mixomics(model)
 
-tidypredict_fit_mixomics <- function(model, vars = character(0)) {
-  parsedmodel <- parse_model_mixomics(model, vars)
+tidypredict_fit_mixomics <- function(
+  model,
+  vars = character(0),
+  preproc = NULL
+) {
+  parsedmodel <- parse_model_mixomics(model, vars, preproc)
 
   if (inherits(parsedmodel, "pm_multiclass_regression")) {
     return(build_fit_formula_multinom(parsedmodel))
@@ -49,17 +53,26 @@ parse_model.mixo_plsda <- function(model) parse_model_mixomics(model)
 #' @export
 parse_model.mixo_splsda <- function(model) parse_model_mixomics(model)
 
-parse_model_mixomics <- function(model, vars = character(0)) {
+parse_model_mixomics <- function(
+  model,
+  vars = character(0),
+  preproc = NULL
+) {
   coefs <- mixomics_coefs(model)
   labels <- rownames(coefs)
   outcomes <- colnames(coefs)
+  fields <- preproc_fields(labels, preproc)
+  center <- attr(coefs, "center")
 
   if (inherits(model, "DA")) {
     # `predict()` returns one linear predictor per class, which {plsmod} turns
     # into class probabilities with a softmax.
     class_terms <- lapply(
       outcomes,
-      function(outcome) build_terms(coefs[, outcome], labels, vars)
+      function(outcome) {
+        terms <- build_terms(coefs[, outcome], labels, vars, fields = fields)
+        mixomics_impute(terms, center)
+      }
     )
 
     pm <- list()
@@ -83,7 +96,8 @@ parse_model_mixomics <- function(model, vars = character(0)) {
       pm$general$type <- "regression"
       pm$general$is_glm <- 0
       pm$general$ncomp <- model$ncomp
-      pm$terms <- build_terms(coefs[, outcome], labels, vars)
+      terms <- build_terms(coefs[, outcome], labels, vars, fields = fields)
+      pm$terms <- mixomics_impute(terms, center)
       as_parsed_model(pm)
     }
   )
@@ -93,6 +107,28 @@ parse_model_mixomics <- function(model, vars = character(0)) {
   }
 
   set_names(pms, outcomes)
+}
+
+# Record, on every term that reads a single column, the value `predict()` fills
+# that column in with when it is missing.
+#
+# `predict.mixo_pls()` centers and scales `newdata` and then replaces every
+# missing value with zero, which puts the predictor back at its training mean
+# rather than propagating the `NA` (#398). A term built from more than one
+# column is an interaction, where the mean of the product is not the product of
+# the means, so it is left alone.
+mixomics_impute <- function(terms, center) {
+  map(terms, function(term) {
+    if (term$is_intercept == 1 || length(term$fields) != 1) {
+      return(term)
+    }
+    val <- center[[term$label]]
+    if (is.null(val) || is.na(val)) {
+      return(term)
+    }
+    term$fields[[1]]$na_val <- val
+    term
+  })
 }
 
 # Reproduces the coefficients that `predict.mixo_pls()` applies to `newdata`,
@@ -121,12 +157,23 @@ mixomics_coefs <- function(model, call = rlang::caller_env()) {
   center_y <- attr(y, "scaled:center") %||% rep(0, ncol(y))
   scale_y <- attr(y, "scaled:scale") %||% rep(1, ncol(y))
 
+  # A predictor that never varied, which is what an unused factor level expands
+  # into, has a scale of zero and so a coefficient of `Inf` or `NaN`. `predict()`
+  # rescales it to `NaN` too and then zeroes it along with any other missing
+  # value, so the column contributes nothing (#398).
+  constant <- scale_x == 0
+  scale_x[constant] <- 1
+
   coefs <- sweep(b_hat / scale_x, 2, scale_y, "*")
+  coefs[constant, ] <- 0
   intercept <- center_y - colSums(coefs * center_x)
 
   coefs <- rbind(intercept, coefs)
   rownames(coefs) <- c("(Intercept)", colnames(x))
   colnames(coefs) <- colnames(y)
+  # `predict()` scales `newdata` and then replaces every missing value with
+  # zero, which is the same as filling the predictor in at its training mean.
+  attr(coefs, "center") <- set_names(as.numeric(center_x), colnames(x))
   coefs
 }
 

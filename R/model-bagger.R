@@ -70,7 +70,13 @@ bagger_classes <- function(model) {
 
 #' @export
 tidypredict_fit.bagger <- function(model, ...) {
-  bagger_build_formula(parse_model(model))
+  # An ensemble of stumps mentions no column, so anchor it to one. The
+  # blueprint's predictor prototypes are hardhat's record of the columns
+  # `newdata` has to supply.
+  expr_recycle_over_column(
+    bagger_build_formula(parse_model(model)),
+    names(model$blueprint$ptypes$predictors)
+  )
 }
 
 bagger_build_formula <- function(parsedmodel) {
@@ -90,7 +96,7 @@ bagger_build_formula <- function(parsedmodel) {
 
 # Average the per-tree expressions of a single quantity
 bagger_mean_tree <- function(tree_info_list) {
-  expr_mean(map(tree_info_list, generate_nested_case_when_tree))
+  expr_mean(map(tree_info_list, classprob_tree_expr))
 }
 
 # Return the class with the largest probability, with ties going to the class
@@ -171,7 +177,7 @@ tidypredict_test.bagger <- function(
   res <- map(
     seq_along(classes),
     function(i) {
-      map(tree_info_list, function(x) generate_nested_case_when_tree(x[[i]]))
+      map(tree_info_list, function(x) classprob_tree_expr(x[[i]]))
     }
   )
   names(res) <- classes
@@ -188,6 +194,37 @@ bagger_check_model <- function(model, call = rlang::caller_env()) {
   invisible(model)
 }
 
+#' @exportS3Method
 build_tree_formula.pm_tree_bagger <- function(model) {
   bagger_build_formula(model)
+}
+
+# Output metadata ---------------------------------
+
+# `bagger_classes()` is the same mode signal `parse_model.bagger()` uses:
+# `NULL` for regression, the outcome levels for classification. A classification
+# ensemble averages class probabilities and then picks the largest, so the fit
+# is a class label rather than a probability.
+#' @export
+tidypredict_output_type.bagger <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (is.null(bagger_classes(x))) {
+    return("numeric")
+  }
+  "class"
+}
+
+#' @export
+tidypredict_outcome_levels.bagger <- function(x, ...) {
+  rlang::check_dots_empty()
+  bagger_classes(x)
+}
+
+#' @export
+tidypredict_normalized.bagger <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  # A single expression either way, so there are no per-level values to sum.
+  NA
 }

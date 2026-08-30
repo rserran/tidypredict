@@ -5,6 +5,9 @@
 #'
 #' @param model An R model or a list with a parsed model.
 #'
+#' @returns A Tidy Eval formula that calculates the fitted values. Models that
+#'   produce one formula per class or per outcome return a list of formulas.
+#'
 #' @examples
 #'
 #' model <- lm(mpg ~ wt + cyl * disp, offset = am, data = mtcars)
@@ -39,9 +42,9 @@ tidypredict_fit.default <- function(model) {
   ))
 
   if (!has_parser) {
-    cli::cli_abort(
-      "Models of class {.cls {class(model)[[1]]}} are not supported."
-    )
+    # `current_env()` keeps the reported call on this frame, which is what the
+    # inlined `cli_abort()` here used to do.
+    abort_model_unsupported(model, call = rlang::current_env())
   }
 
   tidypredict_fit(parse_model(model))
@@ -66,6 +69,23 @@ tidypredict_fit.pm_tree <- function(model) {
   if (model$general$model == "ranger") {
     return(tidypredict_fit_ranger(model))
   }
+  # Single trees were handled by the generic tail of this method until it was
+  # removed as apparently dead code. `party` is the name partykit models are
+  # stored under; `partykit` never appears in a parsed model.
+  if (model$general$model %in% c("party", "rpart")) {
+    return(generate_case_when_tree(
+      model$trees[[1]],
+      model$general[["mode"]] %||% ""
+    ))
+  }
+
+  # Erroring rather than falling off the end keeps any future gap from
+  # silently returning `NULL`.
+  cli::cli_abort(
+    "Version {version} parsed models of type {.val {model$general$model}} are
+     not supported.",
+    .internal = TRUE
+  )
 }
 
 # Tree parsed models all share the `pm_tree` class, so the model they came from
@@ -83,6 +103,7 @@ build_tree_formula <- function(model) {
   UseMethod("build_tree_formula")
 }
 
+#' @exportS3Method
 build_tree_formula.default <- function(model) {
   cli::cli_abort(
     "No builder for tree model {.val {model$general$model}}.",

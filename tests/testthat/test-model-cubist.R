@@ -23,6 +23,7 @@ test_that("returns the right output", {
 })
 
 test_that("model can be saved and re-loaded", {
+  skip_if_not_installed("yaml")
   skip_if_not_installed("Cubist")
 
   model <- Cubist::cubist(
@@ -59,7 +60,7 @@ test_that("formulas produce correct predictions", {
   splits <- map2(splits$variable, splits$value, function(x, y) {
     str2lang(paste("abs(", x, "-", y, ") > 0.0001"))
   })
-  non_split_data <- mtcars %>%
+  non_split_data <- mtcars |>
     dplyr::filter(!!!splits)
 
   expect_false(
@@ -72,15 +73,16 @@ test_that("formulas produce correct predictions", {
 })
 
 test_that("intercept is done correctly (#58)", {
+  skip_if_not_installed("modeldata")
   skip_if_not_installed("Cubist")
 
-  biomass_tr <- modeldata::biomass %>%
-    dplyr::filter(dataset == "Training") %>%
+  biomass_tr <- modeldata::biomass |>
+    dplyr::filter(dataset == "Training") |>
     dplyr::select(-dataset, -sample)
 
   set.seed(1)
   mod <- Cubist::cubist(
-    x = biomass_tr %>% dplyr::select(-HHV),
+    x = biomass_tr |> dplyr::select(-HHV),
     y = biomass_tr$HHV
   )
 
@@ -292,6 +294,153 @@ test_that("a factor condition survives more than one committee (#322)", {
     unname(predict(model, df)),
     tolerance = 1e-6
   )
+})
+
+test_that("rules are assigned to the right committee above 20 (#286)", {
+  skip_if_not_installed("Cubist")
+  df <- cubist_factor_data(4, seed = 3)
+  model <- Cubist::cubist(df[, c("x", "z", "f")], df$y, committees = 25)
+
+  parsed <- parse_model(model)
+  expect_equal(
+    length(parsed$general$ommittee_id),
+    nrow(model$coefficients)
+  )
+  expect_equal(length(unique(parsed$general$ommittee_id)), 25)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    unname(predict(model, df)),
+    tolerance = 1e-6
+  )
+})
+
+cubist_numeric_data <- function(seed = 1, n = 400) {
+  set.seed(seed)
+  df <- data.frame(
+    x1 = rnorm(n),
+    x2 = rnorm(n),
+    x3 = rnorm(n),
+    x4 = rnorm(n),
+    x5 = rnorm(n)
+  )
+  df$y <- 2 * df$x1 - df$x2 + 0.5 * df$x3 * df$x4 + df$x5 + rnorm(n)
+  df
+}
+
+test_that("all-numeric training data matches predict() (#375)", {
+  skip_if_not_installed("Cubist")
+  df <- cubist_numeric_data()
+  for (committees in c(1, 5, 15, 20)) {
+    model <- Cubist::cubist(df[, 1:5], df$y, committees = committees)
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(model), df),
+      unname(predict(model, df)),
+      tolerance = 1e-6
+    )
+  }
+})
+
+test_that("the residual against predict() is relative, not absolute (#375)", {
+  skip_if_not_installed("Cubist")
+  # Cubist holds its coefficients as 32-bit floats, so the agreement with
+  # `predict()` has a relative ceiling near 1e-7. A large outcome therefore
+  # leaves a large absolute difference while the relative one is unchanged.
+  df <- cubist_numeric_data()
+  df$y <- df$y * 1e6
+
+  model <- Cubist::cubist(df[, 1:5], df$y, committees = 5)
+  fit <- rlang::eval_tidy(tidypredict_fit(model), df)
+  reference <- unname(predict(model, df))
+
+  expect_gt(max(abs(fit - reference)), 1e-3)
+  expect_equal(fit, reference, tolerance = 1e-6)
+})
+
+test_that("an unused level and a colliding level name match predict() (#322)", {
+  skip_if_not_installed("Cubist")
+  # A level that never occurs, and a level whose name is also a column in the
+  # data, both break a parser that recovers levels by string matching.
+  set.seed(1)
+  n <- 300
+  df <- data.frame(x = rnorm(n), z = rnorm(n))
+  df$f <- factor(
+    sample(c("x", "z", "q"), n, TRUE),
+    levels = c("x", "z", "q", "unused")
+  )
+  df$y <- 2 * df$x + df$z + 2 * as.integer(df$f) + rnorm(n)
+
+  model <- Cubist::cubist(df[, c("x", "z", "f")], df$y)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    unname(predict(model, df)),
+    tolerance = 1e-6
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(parse_model(model)), df),
+    unname(predict(model, df)),
+    tolerance = 1e-6
+  )
+})
+
+test_that("ordered factor predictors match predict()", {
+  skip_if_not_installed("Cubist")
+  set.seed(2)
+  n <- 300
+  df <- data.frame(x = rnorm(n), z = rnorm(n))
+  df$f <- factor(
+    sample(c("lo", "mid", "hi"), n, TRUE),
+    levels = c("lo", "mid", "hi"),
+    ordered = TRUE
+  )
+  df$y <- 2 * df$x + df$z + 2 * as.integer(df$f) + rnorm(n)
+
+  model <- Cubist::cubist(df[, c("x", "z", "f")], df$y)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    unname(predict(model, df)),
+    tolerance = 1e-6
+  )
+})
+
+test_that("degenerate fit shapes match predict()", {
+  skip_if_not_installed("Cubist")
+
+  single_column <- Cubist::cubist(mtcars[, "wt", drop = FALSE], mtcars$mpg)
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(single_column), mtcars),
+    unname(predict(single_column, mtcars)),
+    tolerance = 1e-6
+  )
+
+  # A constant outcome leaves one rule with no slopes, so the formula is a
+  # scalar rather than a vector.
+  constant <- Cubist::cubist(mtcars[, c("wt", "cyl")], rep(5, nrow(mtcars)))
+  fit <- rlang::eval_tidy(tidypredict_fit(constant), mtcars)
+  expect_length(fit, 1)
+  expect_equal(
+    rep(fit, nrow(mtcars)),
+    unname(predict(constant, mtcars)),
+    tolerance = 1e-6
+  )
+})
+
+test_that("`neighbors` is a predict-time option the formula cannot reproduce", {
+  skip_if_not_installed("Cubist")
+  # The composite of the rule model and a nearest-neighbor correction needs the
+  # training data at prediction time, so no formula can express it. The formula
+  # reproduces `neighbors = 0`, which is what `predict()` defaults to.
+  model <- Cubist::cubist(mtcars[, c("wt", "cyl", "disp")], mtcars$mpg)
+  fit <- rlang::eval_tidy(tidypredict_fit(model), mtcars)
+
+  expect_equal(
+    fit,
+    unname(predict(model, mtcars, neighbors = 0)),
+    tolerance = 1e-6
+  )
+  expect_gt(max(abs(fit - unname(predict(model, mtcars, neighbors = 5)))), 1)
 })
 
 test_that("rows exactly on a split threshold match predict() (#232)", {

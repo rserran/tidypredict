@@ -151,6 +151,7 @@ test_that("splsda models are handled", {
 })
 
 test_that("binary outcomes are handled", {
+  skip_if_not_installed("parsnip")
   skip_if_not_installed("mixOmics")
 
   df <- transform(mtcars, am = factor(am))
@@ -162,6 +163,90 @@ test_that("binary outcomes are handled", {
 
   probs <- sapply(tf, \(f) rlang::eval_tidy(f, df))
   expect_equal(unname(probs), softmax_rows(mixomics_native(model, x)))
+})
+
+mixomics_factor_data <- function(levels, ordered = FALSE, seed = 1) {
+  set.seed(seed)
+  df <- data.frame(
+    x = rnorm(90),
+    x2 = rnorm(90),
+    f = factor(rep(levels, length.out = 90), levels = levels, ordered = ordered)
+  )
+  df$y <- df$x + as.numeric(df$f) + rnorm(90)
+  df
+}
+
+mixomics_reg_spec <- function() {
+  parsnip::pls(num_comp = 2) |>
+    parsnip::set_engine("mixOmics") |>
+    parsnip::set_mode("regression")
+}
+
+test_that("a factor level containing a colon is handled with parsnip", {
+  skip_if_not_installed("parsnip")
+  skip_if_not_installed("mixOmics")
+  skip_if_not_installed("plsmod")
+
+  df <- mixomics_factor_data(c("a:b", "c:d", "e"))
+  model <- parsnip::fit(mixomics_reg_spec(), y ~ x + x2 + f, df)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    predict(model, df)$.pred
+  )
+})
+
+test_that("an ordered factor is rejected with parsnip (#393)", {
+  skip_if_not_installed("parsnip")
+  skip_if_not_installed("mixOmics")
+  skip_if_not_installed("plsmod")
+
+  df <- mixomics_factor_data(c("p", "q", "r"), ordered = TRUE)
+  model <- parsnip::fit(mixomics_reg_spec(), y ~ x + x2 + f, df)
+
+  expect_snapshot(tidypredict_fit(model), error = TRUE)
+})
+
+test_that("an unused factor level matches predict() (#398)", {
+  skip_if_not_installed("parsnip")
+  skip_if_not_installed("mixOmics")
+  skip_if_not_installed("plsmod")
+
+  df <- mixomics_factor_data(c("p", "q", "r"))
+  df$f <- factor(df$f, levels = c("p", "q", "r", "unused"))
+  model <- suppressWarnings(
+    parsnip::fit(mixomics_reg_spec(), y ~ x + x2 + f, df)
+  )
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    suppressWarnings(predict(model, df)$.pred)
+  )
+})
+
+test_that("newdata containing NA matches predict() (#398)", {
+  skip_if_not_installed("mixOmics")
+
+  x <- as.matrix(mtcars[c("disp", "hp", "drat")])
+  model <- mixOmics::pls(x, mtcars$mpg, ncomp = 2)
+
+  nd <- mtcars
+  nd$disp[1:2] <- NA
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), nd),
+    unname(predict(model, as.matrix(nd[c("disp", "hp", "drat")]))$predict[,, 2])
+  )
+})
+
+test_that("training data containing NA is rejected", {
+  skip_if_not_installed("mixOmics")
+
+  x <- as.matrix(mtcars[c("disp", "hp", "drat")])
+  x[1:2, 1] <- NA
+  model <- mixOmics::pls(x, mtcars$mpg, ncomp = 2)
+
+  expect_snapshot(error = TRUE, tidypredict_fit(model))
 })
 
 test_that("model can be saved and re-loaded", {
@@ -206,6 +291,7 @@ test_that("SQL translation works", {
 })
 
 test_that("mixOmics is handled with parsnip", {
+  skip_if_not_installed("parsnip")
   skip_if_not_installed("mixOmics")
   skip_if_not_installed("plsmod")
 
@@ -234,6 +320,7 @@ test_that("mixOmics is handled with parsnip", {
 })
 
 test_that("categorical predictors are handled with parsnip", {
+  skip_if_not_installed("parsnip")
   skip_if_not_installed("mixOmics")
   skip_if_not_installed("plsmod")
 

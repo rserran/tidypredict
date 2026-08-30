@@ -27,12 +27,17 @@ parse_model.lda_emp_bayes_eigen <- function(model) {
   parse_model_sparsediscrim(model)
 }
 
-parse_model_sparsediscrim <- function(model, vars = character(0)) {
+parse_model_sparsediscrim <- function(
+  model,
+  vars = character(0),
+  preproc = NULL
+) {
   # The `x`/`y` interface keeps no formula, in which case every column of the
   # model matrix is used as-is.
   if (!is.null(model$.terms)) {
     acceptable_formula(model)
     vars <- names(attr(model$.terms, "dataClasses"))
+    preproc <- preproc %||% list(terms = model$.terms, xlevels = model$.xlevels)
   }
 
   # The posterior probabilities are the softmax of
@@ -40,8 +45,11 @@ parse_model_sparsediscrim <- function(model, vars = character(0)) {
   # precision matrix. The quadratic `x' P x` term is identical for every class,
   # so it cancels in the softmax and what is left is one linear predictor per
   # class.
+  sparsediscrim_col_names(model)
+
   precision <- sparsediscrim_precision(model)
-  labels <- model$col_names
+  labels <- c("(Intercept)", model$col_names)
+  fields <- preproc_fields(labels, preproc)
 
   class_terms <- lapply(model$est, function(class_est) {
     xbar <- class_est$xbar
@@ -50,8 +58,9 @@ parse_model_sparsediscrim <- function(model, vars = character(0)) {
 
     build_terms(
       c(intercept, coefs),
-      c("(Intercept)", labels),
-      vars
+      labels,
+      vars,
+      fields = fields
     )
   })
 
@@ -59,6 +68,36 @@ parse_model_sparsediscrim <- function(model, vars = character(0)) {
     sparsediscrim_method(model),
     model$groups,
     unname(class_terms)
+  )
+}
+
+# Abort when two columns of the model matrix ended up with the same name.
+#
+# The formula method expands a factor into one column per level, named after
+# the variable and the level, so a level `y2` of `g` gives the column `gy2`,
+# which is also what a predictor literally named `gy2` gives. `lda_diag()` fits
+# on both columns but `predict()` selects them back out of the new data by name
+# with `x[, col_names]`, which returns whichever column comes first for both, so
+# the fit and `predict()` no longer agree with each other.
+#
+# There is no answer that matches both, and the parsnip path is worse still: the
+# model matrix is made unique to `gy2.1`, a name no new data has, and
+# `predict()` fails outright. Refusing is the only honest option (#398).
+sparsediscrim_col_names <- function(model, call = rlang::caller_env()) {
+  cols <- model$col_names
+  duplicated <- unique(cols[duplicated(cols)])
+  if (length(duplicated) == 0) {
+    return(invisible())
+  }
+
+  cli::cli_abort(
+    c(
+      x = "Two predictors expanded into the same model matrix column
+      {.val {duplicated}}.",
+      i = "{.fn sparsediscrim::predict} cannot tell them apart either.
+      Rename the predictor or the factor level it collides with."
+    ),
+    call = call
   )
 }
 

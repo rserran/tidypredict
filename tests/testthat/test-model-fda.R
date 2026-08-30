@@ -165,6 +165,82 @@ test_that("an ordered factor is rejected (#343)", {
   )
 })
 
+fda_factor_data <- function(levels, seed = 1) {
+  set.seed(seed)
+  df <- data.frame(
+    x = rnorm(90),
+    f = factor(rep(levels, length.out = 90), levels = levels)
+  )
+  df$cls <- factor(ifelse(df$x + as.numeric(df$f) > 1.5, "a", "b"))
+  df
+}
+
+test_that("a factor level containing a colon is handled", {
+  skip_if_not_installed("mda")
+
+  df <- fda_factor_data(c("a:b", "c:d", "e"))
+  model <- mda::fda(cls ~ x + f, data = df)
+
+  probs <- sapply(tidypredict_fit(model), \(f) rlang::eval_tidy(f, df))
+
+  expect_equal(
+    unname(probs),
+    unname(predict(model, df, type = "posterior"))
+  )
+})
+
+test_that("newdata containing NA matches predict()", {
+  skip_if_not_installed("mda")
+
+  df <- fda_factor_data(c("p", "q", "r"))
+  model <- mda::fda(cls ~ x + f, data = df)
+
+  nd <- df
+  nd$x[1:3] <- NA
+  nd$f[4:5] <- NA
+  complete <- stats::complete.cases(nd)
+
+  probs <- sapply(tidypredict_fit(model), \(f) rlang::eval_tidy(f, nd))
+
+  # `predict.fda()` drops the incomplete rows rather than returning `NA` for
+  # them, so only the rows it kept can be compared.
+  expect_true(all(is.na(probs[!complete, ])))
+  expect_equal(
+    unname(probs[complete, ]),
+    unname(predict(model, nd, type = "posterior"))
+  )
+})
+
+test_that("training data containing NA matches predict()", {
+  skip_if_not_installed("mda")
+
+  df <- fda_factor_data(c("p", "q", "r"))
+  df$x[1:5] <- NA
+  model <- mda::fda(cls ~ x + f, data = df)
+  complete <- df[stats::complete.cases(df), ]
+
+  probs <- sapply(tidypredict_fit(model), \(f) rlang::eval_tidy(f, complete))
+
+  expect_equal(
+    unname(probs),
+    unname(predict(model, complete, type = "posterior"))
+  )
+})
+
+test_that("a single-column model matrix is handled", {
+  skip_if_not_installed("mda")
+
+  df <- fda_factor_data(c("p", "q", "r"))
+
+  for (fo in c(cls ~ x, cls ~ f)) {
+    model <- mda::fda(fo, data = df)
+    expect_equal(
+      unname(sapply(tidypredict_fit(model), \(f) rlang::eval_tidy(f, df))),
+      unname(predict(model, df, type = "posterior"))
+    )
+  }
+})
+
 test_that("an ordered outcome is not mistaken for an ordered predictor (#343)", {
   skip_if_not_installed("mda")
   df <- transform(mtcars, cyl = factor(cyl, ordered = TRUE))
@@ -197,6 +273,7 @@ test_that("SQL translation works", {
 })
 
 test_that("fda is handled with parsnip", {
+  skip_if_not_installed("parsnip")
   skip_if_not_installed("mda")
   skip_if_not_installed("discrim")
 
@@ -212,4 +289,20 @@ test_that("fda is handled with parsnip", {
   native <- as.matrix(predict(model, iris, type = "prob"))
 
   expect_equal(unname(probs), unname(native))
+})
+
+test_that("a coefficient label colliding with a variable name works (#376)", {
+  skip_if_not_installed("mda")
+
+  set.seed(1)
+  df <- data.frame(
+    g = factor(rep(c("x1", "y2", "z3"), length.out = 60)),
+    gy2 = rnorm(60)
+  )
+  df$cls <- factor(ifelse(df$gy2 + as.numeric(df$g) > 2, "a", "b"))
+
+  model <- mda::fda(cls ~ g + gy2, data = df)
+  probs <- rlang::eval_tidy(tidypredict_fit(model)[["b"]], df)
+
+  expect_equal(probs, unname(predict(model, df, type = "posterior")[, "b"]))
 })

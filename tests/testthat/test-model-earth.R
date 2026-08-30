@@ -17,9 +17,13 @@ test_that("returns the right output", {
   )
 })
 
-test_that("model can be saved and re-loaded", {
+test_that("a parsed model round trips through YAML", {
+  skip_if_not_installed("yaml")
   skip_if_not_installed("earth")
   model <- earth::earth(mpg ~ ., data = mtcars)
+
+  # Both sides derive from the same rounded object, so this asserts that the
+  # YAML round trip is lossless, not that either side matches `predict()`.
   model$coefficients <- round(model$coefficients, 7)
 
   pm <- parse_model(model)
@@ -298,6 +302,102 @@ test_that("a global non-treatment contrast is rejected (#323)", {
   )
 })
 
+test_that("an unused factor level still matches predict()", {
+  skip_if_not_installed("earth")
+  d <- earth_factor_data(ordered = FALSE)
+  d$f <- factor(d$f, levels = c(levels(d$f), "unused"))
+  model <- earth::earth(y ~ x + z + f, data = d)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), d),
+    as.numeric(predict(model, d))
+  )
+})
+
+test_that("a factor level colliding with a variable name works", {
+  skip_if_not_installed("earth")
+  d <- earth_factor_data(ordered = FALSE)
+  d$f <- factor(c(a = "x", b = "z", c = "x2", d = "q")[as.character(d$f)])
+  model <- earth::earth(y ~ x + z + f, data = d)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), d),
+    as.numeric(predict(model, d))
+  )
+})
+
+test_that("a factor level containing a colon matches predict() (#391)", {
+  skip_if_not_installed("earth")
+  d <- earth_factor_data(ordered = FALSE)
+  d$f <- factor(paste0(as.character(d$f), ":1"))
+  model <- earth::earth(y ~ x + z + f, data = d)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), d),
+    as.numeric(predict(model, d))
+  )
+})
+
+test_that("`NA` in newdata gives the same answer as predict()", {
+  skip_if_not_installed("earth")
+  d <- earth_factor_data(ordered = FALSE)
+  model <- earth::earth(y ~ x + z + f, data = d)
+
+  na_d <- d
+  na_d$x[c(2, 5)] <- NA
+  na_d$f[c(1, 3)] <- NA
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), na_d),
+    as.numeric(predict(model, na_d))
+  )
+})
+
+test_that("a knot boundary lands on the same side as predict()", {
+  skip_if_not_installed("earth")
+  model <- earth::earth(mpg ~ wt, data = mtcars)
+  knots <- sort(unique(as.numeric(
+    model$cuts[model$selected.terms, , drop = FALSE]
+  )))
+  expect_gt(length(knots), 1)
+
+  # exactly at each knot, and one ulp either side of it
+  nd <- data.frame(wt = c(knots, knots - 1e-12, knots + 1e-12))
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), nd),
+    as.numeric(predict(model, nd))
+  )
+})
+
+test_that("degenerate fit shapes work", {
+  skip_if_not_installed("earth")
+
+  # Pure noise prunes back to the intercept, so the formula is a constant
+  set.seed(2)
+  noise <- data.frame(wt = mtcars$wt, disp = mtcars$disp, mpg = rnorm(32))
+  intercept_only <- earth::earth(mpg ~ wt + disp, data = noise)
+  expect_length(intercept_only$selected.terms, 1)
+  expect_equal(
+    rep(rlang::eval_tidy(tidypredict_fit(intercept_only), noise), nrow(noise)),
+    as.numeric(predict(intercept_only, noise))
+  )
+
+  constant <- mtcars
+  constant$mpg <- 5
+  model <- earth::earth(mpg ~ wt + disp, data = constant)
+  expect_equal(
+    rep(rlang::eval_tidy(tidypredict_fit(model), constant), nrow(constant)),
+    as.numeric(predict(model, constant))
+  )
+
+  single_predictor <- earth::earth(mpg ~ wt, data = mtcars)
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(single_predictor), mtcars),
+    as.numeric(predict(single_predictor, mtcars))
+  )
+})
+
 test_that("probit link works (#194)", {
   skip_if_not_installed("earth")
   model <- earth::earth(
@@ -359,16 +459,16 @@ test_that("inverse.gaussian family works (#195)", {
   expect_equal(tidy, native)
 })
 
-# Tests for .extract_earth_multiclass()
+# Tests for tidypredict_class_exprs()
 
-test_that(".extract_earth_multiclass errors on non-earth model", {
+test_that("tidypredict_class_exprs errors on non-earth model", {
   skip_if_not_installed("earth")
   model <- lm(mpg ~ ., data = mtcars)
 
-  expect_snapshot(error = TRUE, .extract_earth_multiclass(model))
+  expect_snapshot(error = TRUE, tidypredict_class_exprs(model))
 })
 
-test_that(".extract_earth_multiclass errors on binary model", {
+test_that("tidypredict_class_exprs errors on binary model", {
   skip_if_not_installed("earth")
   suppressWarnings(
     model <- earth::earth(
@@ -378,17 +478,17 @@ test_that(".extract_earth_multiclass errors on binary model", {
     )
   )
 
-  expect_snapshot(error = TRUE, .extract_earth_multiclass(model))
+  expect_snapshot(error = TRUE, tidypredict_class_exprs(model))
 })
 
-test_that(".extract_earth_multiclass errors on regression model", {
+test_that("tidypredict_class_exprs errors on regression model", {
   skip_if_not_installed("earth")
   model <- earth::earth(mpg ~ ., data = mtcars)
 
-  expect_snapshot(error = TRUE, .extract_earth_multiclass(model))
+  expect_snapshot(error = TRUE, tidypredict_class_exprs(model))
 })
 
-test_that(".extract_earth_multiclass returns correct structure", {
+test_that("tidypredict_class_exprs returns correct structure", {
   skip_if_not_installed("earth")
   skip_if_not(
     exists("contr.earth.response", where = asNamespace("earth")),
@@ -404,15 +504,15 @@ test_that(".extract_earth_multiclass returns correct structure", {
     )
   )
 
-  result <- .extract_earth_multiclass(model)
+  result <- tidypredict_class_exprs(model)
 
   expect_type(result, "list")
   expect_length(result, 3)
   expect_named(result, levels(iris$Species))
-  expect_type(result[[1]], "character")
+  expect_type(result[[1]], "language")
 })
 
-test_that(".extract_earth_multiclass produces correct predictions", {
+test_that("tidypredict_class_exprs produces correct predictions", {
   skip_if_not_installed("earth")
   skip_if_not(
     exists("contr.earth.response", where = asNamespace("earth")),
@@ -428,13 +528,13 @@ test_that(".extract_earth_multiclass produces correct predictions", {
     )
   )
 
-  eqs <- .extract_earth_multiclass(model)
+  eqs <- tidypredict_class_exprs(model)
   n_rows <- nrow(iris)
 
   # Evaluate each expression - earth GLM outputs are already on probability scale
   # (not logits), so we don't apply softmax
   probs <- sapply(eqs, function(eq) {
-    val <- rlang::eval_tidy(rlang::parse_expr(eq), iris)
+    val <- rlang::eval_tidy(eq, iris)
     if (length(val) == 1) rep(val, n_rows) else val
   })
 
@@ -444,7 +544,7 @@ test_that(".extract_earth_multiclass produces correct predictions", {
   expect_equal(unname(probs), unname(native), tolerance = 1e-6)
 })
 
-test_that(".extract_earth_multiclass works with degree > 1", {
+test_that("tidypredict_class_exprs works with degree > 1", {
   skip_if_not_installed("earth")
   skip_if_not(
     exists("contr.earth.response", where = asNamespace("earth")),
@@ -461,7 +561,7 @@ test_that(".extract_earth_multiclass works with degree > 1", {
     )
   )
 
-  result <- .extract_earth_multiclass(model)
+  result <- tidypredict_class_exprs(model)
 
   expect_type(result, "list")
   expect_length(result, 3)

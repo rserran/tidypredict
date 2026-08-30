@@ -15,6 +15,10 @@ parse_model.randomForest <- function(model) {
   # Recorded so the parsed model can reproduce `predict()`'s refusal to score
   # an incomplete row, including for a predictor that no split happens to use.
   pm$general$predictors <- term_labels
+  # `corr.bias = TRUE` stores the intercept and slope of a regression of the
+  # observed values on the out-of-bag predictions, which `predict()` applies to
+  # the forest average.
+  pm$general$coefs <- unname(model$coefs)
   pm$tree_info_list <- map(
     seq_len(model$ntree),
     function(tree_no) rf_tree_info_full(model, tree_no, term_labels)
@@ -22,9 +26,56 @@ parse_model.randomForest <- function(model) {
   as_parsed_model(pm)
 }
 
+# The node table of a single tree.
+#
+# `randomForest::getTree()` subsets its assembled matrix without
+# `drop = FALSE`, so a stump (a tree with a single root node and no split)
+# collapses to a plain vector. `nrow()` on that is `NULL`, and the `1:nrow()`
+# that follows aborts with "argument of length 0" before the tree is ever
+# returned. A stump is common whenever the outcome is constant within the
+# bootstrap sample, and `predict()` scores such a forest fine, so the table is
+# assembled here for that case rather than letting the fit fail.
+rf_get_tree <- function(model, tree_no) {
+  n_nodes <- model$forest$ndbigtree[tree_no]
+  if (n_nodes > 1) {
+    return(randomForest::getTree(model, tree_no))
+  }
+
+  forest <- model$forest
+  if (model$type == "regression") {
+    daughters <- cbind(
+      forest$leftDaughter[, tree_no],
+      forest$rightDaughter[, tree_no]
+    )
+  } else {
+    daughters <- forest$treemap[,, tree_no]
+  }
+
+  tree <- cbind(
+    daughters,
+    forest$bestvar[, tree_no],
+    forest$xbestsplit[, tree_no],
+    forest$nodestatus[, tree_no],
+    forest$nodepred[, tree_no]
+  )[seq_len(n_nodes), , drop = FALSE]
+
+  dimnames(tree) <- list(
+    seq_len(n_nodes),
+    c(
+      "left daughter",
+      "right daughter",
+      "split var",
+      "split point",
+      "status",
+      "prediction"
+    )
+  )
+  tree
+}
+
 # Convert randomForest getTree to standard tree_info format
 rf_tree_info_full <- function(model, tree_no, term_labels) {
-  tree <- randomForest::getTree(model, tree_no)
+  tree <- rf_get_tree(model, tree_no)
   n_nodes <- nrow(tree)
 
   # randomForest uses 1-indexed nodes, convert to 0-indexed
@@ -159,9 +210,27 @@ tidypredict_fit_rf_nested <- function(model) {
     build_nested_rf_tree(model, tree_no, term_labels)
   })
 
-  # `randomForest::predict()` returns `NA` for a row with any missing
-  # predictor, so the forest average is only defined on complete rows.
-  expr_na_if_incomplete(expr_mean(tree_exprs, n_trees), term_labels)
+  rf_combine(tree_exprs, n_trees, unname(model$coefs), term_labels)
+}
+
+# `randomForest::predict()` returns `NA` for a row with any missing predictor,
+# so the forest average is only defined on complete rows.
+rf_combine <- function(tree_exprs, n_trees, coefs, predictors) {
+  expr_na_if_incomplete(
+    rf_correct_bias(expr_mean(tree_exprs, n_trees), coefs),
+    predictors
+  )
+}
+
+# `randomForest(corr.bias = TRUE)` fits `observed ~ predicted` on the
+# out-of-bag predictions and keeps the two coefficients in `model$coefs`.
+# `predict.randomForest()` then returns `coefs[1] + coefs[2] * yhat` for every
+# complete row, so the correction is an affine rescale of the forest average.
+rf_correct_bias <- function(f, coefs) {
+  if (is.null(coefs)) {
+    return(f)
+  }
+  expr(!!coefs[[1]] + !!coefs[[2]] * (!!f))
 }
 
 # Build nested case_when for a single randomForest tree
@@ -174,7 +243,7 @@ build_nested_rf_tree <- function(
   term_labels,
   leaf_value = identity
 ) {
-  tree <- randomForest::getTree(model, tree_no)
+  tree <- rf_get_tree(model, tree_no)
 
   # Pre-extract columns as vectors for fast indexing (avoids slow row access)
   # Use unname() once here instead of on every recursive call
@@ -234,44 +303,41 @@ tidypredict_fit_randomForest <- function(parsedmodel) {
   expr_mean(generate_case_when_trees(parsedmodel))
 }
 
-# For {orbital} -----------------------------------------------
+# Extractors --------------------------------------------------
 
-#' Extract classification vote trees for randomForest models
-#'
-#' For use in orbital package.
-#' @param model A randomForest model object
-#' @keywords internal
 #' @export
-.extract_rf_classprob <- function(model) {
-  if (!inherits(model, "randomForest")) {
-    cli::cli_abort(
-      "{.arg model} must be {.cls randomForest}, not {.obj_type_friendly {model}}."
-    )
-  }
+tidypredict_class_trees.randomForest <- function(x, ...) {
+  rlang::check_dots_empty()
 
-  # Check if this is a classification model
-  if (is.null(model$classes)) {
+  if (is.null(x$classes)) {
     cli::cli_abort(
       c(
         "Model is not a classification model.",
-        i = "Use {.fn tidypredict_fit} for regression models."
+        i = "Use {.fn tidypredict_trees} for regression models."
       )
     )
   }
 
-  # Get class levels from the model
-  lvls <- model$classes
-  term_labels <- names(model$forest$ncat)
+  lvls <- x$classes
+  term_labels <- names(x$forest$ncat)
 
   # For each class, generate nested case_when expressions for all trees
   res <- list()
   for (lvl in lvls) {
-    tree_exprs <- map(seq_len(model$ntree), function(tree_no) {
-      build_nested_rf_vote_tree(model, tree_no, term_labels, lvl)
+    tree_exprs <- map(seq_len(x$ntree), function(tree_no) {
+      build_nested_rf_vote_tree(x, tree_no, term_labels, lvl)
     })
     res[[lvl]] <- tree_exprs
   }
   res
+}
+
+#' @export
+tidypredict_n_trees.randomForest <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  # randomForest stores this as a double.
+  as.integer(x$ntree)
 }
 
 # Build nested case_when for randomForest voting tree
@@ -294,40 +360,68 @@ build_nested_rf_vote_tree <- function(
   )
 }
 
-#' Extract regression trees for randomForest models
-#'
-#' For use in orbital package.
-#' @param model A randomForest model object (regression)
-#' @keywords internal
 #' @export
-.extract_rf_trees <- function(model) {
-  if (!inherits(model, "randomForest")) {
-    cli::cli_abort(
-      "{.arg model} must be {.cls randomForest}, not {.obj_type_friendly {model}}."
-    )
-  }
+tidypredict_trees.randomForest <- function(x, ...) {
+  rlang::check_dots_empty()
 
-  # Check if this is a classification model
-  if (!is.null(model$classes)) {
+  if (!is.null(x$classes)) {
     cli::cli_abort(
       c(
         "Classification models are not supported.",
-        i = "Use {.fn .extract_rf_classprob} for classification models."
+        i = "Use {.fn tidypredict_class_trees} for classification models."
       )
     )
   }
 
-  n_trees <- model$ntree
-  term_labels <- names(model$forest$ncat)
+  # The bias correction applies to the forest average, so it cannot be carried
+  # by the individual tree expressions returned here.
+  if (!is.null(x$coefs)) {
+    cli::cli_abort(
+      "Models fitted with {.code corr.bias = TRUE} are not supported."
+    )
+  }
 
-  map(seq_len(n_trees), function(tree_no) {
-    build_nested_rf_tree(model, tree_no, term_labels)
+  term_labels <- names(x$forest$ncat)
+
+  map(seq_len(x$ntree), function(tree_no) {
+    build_nested_rf_tree(x, tree_no, term_labels)
   })
 }
 
+# Averaging the trees is not the whole prediction: `predict()` declines to score
+# a row with any missing predictor, so the average is wrapped in a guard that
+# returns `NA` for such a row.
+#' @export
+tidypredict_combine_trees.randomForest <- function(x, trees, ...) {
+  rlang::check_dots_empty()
+  check_trees_arg(trees)
+
+  if (!is.null(x$classes)) {
+    cli::cli_abort(
+      c(
+        "Classification models are not supported.",
+        i = "Each tree votes for a class, so there are no per-tree numbers to
+             average."
+      ),
+      class = "tidypredict_no_combiner"
+    )
+  }
+  # As in `tidypredict_trees()`: the bias correction applies to the forest
+  # average, and the coefficients it needs cannot be recovered from the trees.
+  if (!is.null(x$coefs)) {
+    cli::cli_abort(
+      "Models fitted with {.code corr.bias = TRUE} are not supported.",
+      class = "tidypredict_no_combiner"
+    )
+  }
+
+  rf_combine(trees, x$ntree, NULL, names(x$forest$ncat))
+}
+
+#' @exportS3Method
 build_tree_formula.pm_tree_randomForest <- function(model) {
   expr_na_if_incomplete(
-    build_tree_formula_forest(model),
+    rf_correct_bias(build_tree_formula_forest(model), model$general$coefs),
     model$general$predictors
   )
 }

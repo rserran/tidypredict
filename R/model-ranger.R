@@ -76,6 +76,35 @@ ranger_predictor_levels <- function(model) {
   list(levels = levels, is_ordered = is_ordered)
 }
 
+# `treeInfo()` warns when it cannot render a split on more than 31 levels and
+# blanks the value out. The split values are read from the forest instead, so
+# the warning is about a column that is never used.
+ranger_tree_info <- function(model, tree_no) {
+  withCallingHandlers(
+    ranger::treeInfo(model, tree_no),
+    warning = function(w) {
+      if (grepl("Unordered splitting levels", conditionMessage(w))) {
+        rlang::cnd_muffle(w)
+      }
+    }
+  )
+}
+
+# Split values are read from the forest rather than from `treeInfo()`, which
+# renders them for display: an unordered split value is turned into a
+# comma-separated string of level indices, and above 31 levels `treeInfo()`
+# warns and drops it altogether.
+ranger_split_values <- function(model, tree_no) {
+  model$forest$split.values[[tree_no]]
+}
+
+# Is bit `k - 1` of a bit-packed split value set? `ranger` allows up to 53
+# levels, so the mask is read with arithmetic rather than with `bitwAnd()`,
+# which is limited to 32 bits.
+ranger_bit_set <- function(value, k) {
+  (floor(value) %/% 2^(k - 1)) %% 2 == 1
+}
+
 # `ranger` writes a split on a factor predictor in one of two forms, neither of
 # which is a threshold on the column itself.
 #
@@ -84,20 +113,32 @@ ranger_predictor_levels <- function(model) {
 # naming a position in the stored level sequence: everything up to that
 # position goes left.
 #
-# An unordered predictor, which is `"partition"`, gets a comma-separated list
-# of level indices that go *right*. Left is the complement. Reading the list as
-# the left set instead is wrong but plausible, and produces a small enough
-# error to look like a rounding problem.
-ranger_split_info <- function(col, split_val, levels, is_ordered) {
+# An unordered predictor, which is `"partition"`, gets the set of level indices
+# that go *right* packed into the bits of a single value: bit `k - 1` is set
+# when level `k` goes right. Left is the complement. See `Tree::predict()` in
+# `src/Tree.cpp`, the branch taken when `isOrderedVariable()` is `FALSE`.
+# Reading the value as a threshold instead is wrong but plausible, and produces
+# a small enough error to look like a rounding problem.
+ranger_split_info <- function(
+  col,
+  split_val,
+  levels,
+  is_ordered,
+  missing_right = FALSE
+) {
   if (is.null(levels)) {
-    return(list(col = col, val = as.numeric(split_val), is_categorical = FALSE))
+    return(list(
+      col = col,
+      val = as.numeric(split_val),
+      is_categorical = FALSE,
+      missing_right = missing_right
+    ))
   }
 
   if (isTRUE(is_ordered)) {
     left <- levels[seq_len(floor(as.numeric(split_val)))]
   } else {
-    right_idx <- as.integer(strsplit(as.character(split_val), ",")[[1]])
-    left <- levels[-right_idx]
+    left <- levels[!ranger_bit_set(as.numeric(split_val), seq_along(levels))]
     return(list(
       col = col,
       vals = as.list(left),
@@ -106,12 +147,38 @@ ranger_split_info <- function(col, split_val, levels, is_ordered) {
     ))
   }
 
-  list(col = col, vals = as.list(left), is_categorical = TRUE)
+  list(
+    col = col,
+    vals = as.list(left),
+    is_categorical = TRUE,
+    missing_right = missing_right
+  )
 }
 
-# `ranger` compares an ordered or numeric split as `value > splitval`, and a
-# missing value fails that test, so it takes the same branch as a value at or
-# below the split point.
+# With `na.action = "na.learn"`, the default since `ranger` 0.17.0, a forest
+# trained on data containing `NA` learns a direction for missing values at each
+# node it saw one at, and stores it as a third child vector alongside the left
+# and right ones. `Tree::predict()` consults it for an ordered or numeric split
+# only: a positive entry is the node ID to descend to, and a zero means the node
+# learned nothing and the row goes left.
+#
+# An unordered split takes the other branch of `Tree::predict()` entirely and
+# never looks at the default direction, so it keeps the level-collapsing
+# behaviour described above.
+ranger_missing_right <- function(model, tree_no) {
+  kids <- model$forest$child.nodeIDs[[tree_no]]
+  if (length(kids) < 3) {
+    return(NULL)
+  }
+  default_child <- kids[[3]]
+  right_child <- kids[[2]]
+  default_child > 0 & default_child == right_child
+}
+
+# A node that learned a direction for missing values sends them there; see
+# `ranger_missing_right()`. Otherwise `ranger` compares an ordered or numeric
+# split as `value > splitval`, and a missing value fails that test, so it takes
+# the same branch as a value at or below the split point.
 #
 # An unordered split instead indexes a bitmask by the level's position.
 # `ranger` derives that position from the raw value, and a missing value
@@ -128,13 +195,19 @@ ranger_split_condition <- function(split) {
     return(condition)
   }
 
+  if (isTRUE(split$missing_right)) {
+    return(condition)
+  }
+
   expr(!!build_nested_split_missing(split) | !!condition)
 }
 
 # Convert ranger treeInfo to standard tree_info format
 ranger_tree_info_full <- function(model, tree_no) {
-  tree <- ranger::treeInfo(model, tree_no)
+  tree <- ranger_tree_info(model, tree_no)
   info <- ranger_predictor_levels(model)
+  missing_right <- ranger_missing_right(model, tree_no)
+  splitval <- ranger_split_values(model, tree_no)
 
   # Build node_splits list
   node_splits <- vector("list", nrow(tree))
@@ -145,9 +218,10 @@ ranger_tree_info_full <- function(model, tree_no) {
       node_splits[[i]] <- list(
         primary = ranger_split_info(
           var_name,
-          tree$splitval[i],
+          splitval[i],
           info$levels[[var_name]],
-          info$is_ordered[[var_name]]
+          info$is_ordered[[var_name]],
+          missing_right = isTRUE(missing_right[i])
         )
       )
     }
@@ -180,7 +254,14 @@ tidypredict_fit_ranger_nested <- function(model) {
     build_nested_ranger_tree(model, tree_no)
   })
 
-  expr_mean(tree_exprs, n_trees)
+  ranger_combine(tree_exprs, n_trees, model$forest$independent.variable.names)
+}
+
+# A forest of stumps mentions no column, so the average is anchored to one.
+# These are the predictors `ranger:::predict.ranger()` itself requires in
+# `newdata`.
+ranger_combine <- function(tree_exprs, n_trees, predictors) {
+  expr_recycle_over_column(expr_mean(tree_exprs, n_trees), predictors)
 }
 
 # Build nested case_when for a single ranger tree
@@ -189,16 +270,17 @@ tidypredict_fit_ranger_nested <- function(model) {
 # Regression trees use `prediction`; probability forests have one `pred.<class>`
 # column per class.
 build_nested_ranger_tree <- function(model, tree_no, leaf_col = "prediction") {
-  tree <- ranger::treeInfo(model, tree_no)
+  tree <- ranger_tree_info(model, tree_no)
 
   # Pre-extract columns as vectors for fast indexing (avoids slow df[i,] access)
   leftChild <- tree$leftChild
   rightChild <- tree$rightChild
   splitvarName <- as.character(tree$splitvarName)
-  splitval <- tree$splitval
+  splitval <- ranger_split_values(model, tree_no)
   terminal <- tree$terminal
   prediction <- tree[[leaf_col]]
   info <- ranger_predictor_levels(model)
+  missing_right <- ranger_missing_right(model, tree_no)
 
   build_node <- function(node_id) {
     # node_id is 0-indexed, convert to 1-indexed for vector access
@@ -220,7 +302,8 @@ build_nested_ranger_tree <- function(model, tree_no, leaf_col = "prediction") {
       split_var,
       split_val,
       info$levels[[split_var]],
-      info$is_ordered[[split_var]]
+      info$is_ordered[[split_var]],
+      missing_right = isTRUE(missing_right[idx])
     )
     condition <- ranger_split_condition(split)
 
@@ -244,140 +327,6 @@ tidypredict_fit_ranger <- function(parsedmodel) {
   }
 
   expr_mean(generate_case_when_trees(parsedmodel))
-}
-
-# Legacy tree extraction functions (no longer used) ---------------------------
-# These functions were used by the old parse_model.ranger() to populate pm$trees
-# in the flat path format. Now parse_model.ranger() uses ranger_tree_info_full()
-# to populate pm$tree_info_list instead. Kept for reference.
-
-get_child_info <- function(tree) {
-  child_info <- numeric(max(tree$nodeID))
-  left_child <- tree$leftChild
-  right_child <- tree$rightChild
-  node_id <- tree$nodeID
-
-  for (i in seq_len(nrow(tree))) {
-    node <- node_id[[i]]
-
-    child <- left_child[[i]]
-    if (!is.na(child)) {
-      child_info[child] <- node
-    }
-
-    child <- right_child[[i]]
-    if (!is.na(child)) {
-      child_info[child] <- node
-    }
-  }
-
-  child_info
-}
-
-get_ra_path <- function(node_id, tree, child_info, default_op = TRUE) {
-  find <- node_id
-  path <- node_id
-
-  leftChild <- tree$leftChild
-  rightChild <- tree$rightChild
-
-  splitval <- tree$splitval
-  splitvarName <- tree$splitvarName
-
-  # Handle stump trees (no splits) - return empty path
-  if (length(child_info) == 0 || find < 1 || find > length(child_info)) {
-    return(list())
-  }
-
-  new <- child_info[[find]]
-  path <- find
-  repeat {
-    if (new == 0) {
-      path <- c(path, 0)
-      break
-    }
-    path <- c(path, new)
-    find <- new
-    new <- child_info[[find]]
-  }
-
-  map2(
-    path[1:length(path) - 1],
-    path[2:length(path)],
-    ~ {
-      lc <- leftChild[.y + 1] == .x
-      lr <- rightChild[.y + 1] == .x
-      if (default_op) {
-        if (lc) {
-          op <- "less"
-        }
-        if (lr) {
-          op <- "more-equal"
-        }
-      } else {
-        if (lc) {
-          op <- "less-equal"
-        }
-        if (lr) {
-          op <- "more"
-        }
-      }
-      list(
-        type = "conditional",
-        col = as.character(splitvarName[.y + 1]),
-        val = splitval[.y + 1],
-        op = op
-      )
-    }
-  )
-}
-
-get_ra_tree <- function(tree_no, model) {
-  tree <- ranger::treeInfo(model, tree_no)
-  paths <- tree$nodeID[tree[, "terminal"]]
-
-  child_info <- get_child_info(tree)
-
-  map(
-    paths,
-    ~ {
-      prediction <- tree$prediction[tree$nodeID == .x]
-      if (!is.null(prediction)) {
-        if (is.factor(prediction)) {
-          prediction <- as.character(prediction)
-        }
-        list(
-          prediction = prediction,
-          path = get_ra_path(.x, tree, child_info, FALSE)
-        )
-      } else {
-        preds <- map_lgl(colnames(tree), ~ "pred." == substr(.x, 1, 5))
-        preds_table <- tree[tree$nodeID == .x, preds]
-        predictors <- map_chr(colnames(preds_table), ~ substr(.x, 6, nchar(.x)))
-        colnames(preds_table) <- predictors
-        predictions <- map(preds_table, ~.x)
-        max_pred <- map_lgl(predictions, ~ .x == max(map_dbl(predictions, ~.x)))
-        prediction <- names(predictions)[max_pred]
-        prediction <- prediction[[1]]
-        prob <- predictions[max_pred]
-        prob <- prob[[1]]
-        predictions <- imap(predictions, ~ list(pred = .y, prob = .x))
-        list(
-          prediction = prediction,
-          prob = prob,
-          probs = predictions,
-          path = get_ra_path(.x, tree, child_info, FALSE)
-        )
-      }
-    }
-  )
-}
-
-get_ra_trees <- function(model) {
-  map(
-    seq_len(model$num.trees),
-    ~ get_ra_tree(.x, model)
-  )
 }
 
 # Test ---------------------------------------------
@@ -406,23 +355,14 @@ tidypredict_test.ranger <- function(
   test_results_numeric(base, te[, "fit_te"], threshold, model$call)
 }
 
-# For {orbital} -----------------------------------------------
+# Extractors --------------------------------------------------
 
-#' Extract classification probability trees for ranger models
-#'
-#' For use in orbital package.
-#' @param model A ranger model object fitted with `probability = TRUE`
-#' @keywords internal
 #' @export
-.extract_ranger_classprob <- function(model) {
-  if (!inherits(model, "ranger")) {
-    cli::cli_abort(
-      "{.arg model} must be {.cls ranger}, not {.obj_type_friendly {model}}."
-    )
-  }
+tidypredict_class_trees.ranger <- function(x, ...) {
+  rlang::check_dots_empty()
 
   # Get class levels from treeInfo
-  tree <- ranger::treeInfo(model, 1)
+  tree <- ranger_tree_info(x, 1)
   pred_cols <- grep("^pred\\.", names(tree), value = TRUE)
 
   if (length(pred_cols) == 0) {
@@ -439,8 +379,8 @@ tidypredict_test.ranger <- function(
   # For each class, generate nested case_when expressions for all trees
   res <- list()
   for (lvl in lvls) {
-    tree_exprs <- map(seq_len(model$num.trees), function(tree_no) {
-      build_nested_ranger_prob_tree(model, tree_no, lvl)
+    tree_exprs <- map(seq_len(x$num.trees), function(tree_no) {
+      build_nested_ranger_prob_tree(x, tree_no, lvl)
     })
     res[[lvl]] <- tree_exprs
   }
@@ -452,37 +392,45 @@ build_nested_ranger_prob_tree <- function(model, tree_no, class_level) {
   build_nested_ranger_tree(model, tree_no, paste0("pred.", class_level))
 }
 
-#' Extract regression trees for ranger models
-#'
-#' For use in orbital package.
-#' @param model A ranger model object (regression)
-#' @keywords internal
 #' @export
-.extract_ranger_trees <- function(model) {
-  if (!inherits(model, "ranger")) {
-    cli::cli_abort(
-      "{.arg model} must be {.cls ranger}, not {.obj_type_friendly {model}}."
-    )
-  }
+tidypredict_trees.ranger <- function(x, ...) {
+  rlang::check_dots_empty()
 
   # Check if this is a classification model
-  first_tree <- ranger::treeInfo(model, 1)
+  first_tree <- ranger_tree_info(x, 1)
   first_pred <- first_tree$prediction[first_tree$terminal][1]
   if (is.character(first_pred) || is.factor(first_pred)) {
     cli::cli_abort(
       c(
         "Classification models are not supported.",
-        i = "Use {.fn .extract_ranger_classprob} for classification models."
+        i = "Use {.fn tidypredict_class_trees} for classification models."
       )
     )
   }
 
-  n_trees <- model$num.trees
-  map(seq_len(n_trees), function(tree_no) {
-    build_nested_ranger_tree(model, tree_no)
+  map(seq_len(x$num.trees), function(tree_no) {
+    build_nested_ranger_tree(x, tree_no)
   })
 }
 
+#' @export
+tidypredict_n_trees.ranger <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  # ranger stores this as a double.
+  as.integer(x$num.trees)
+}
+
+#' @export
+tidypredict_combine_trees.ranger <- function(x, trees, ...) {
+  rlang::check_dots_empty()
+  check_trees_arg(trees)
+  ranger_check_supported(x)
+
+  ranger_combine(trees, x$num.trees, x$forest$independent.variable.names)
+}
+
+#' @exportS3Method
 build_tree_formula.pm_tree_ranger <- function(model) {
   expr_mean(map(
     model$tree_info_list,

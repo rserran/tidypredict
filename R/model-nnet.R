@@ -118,11 +118,28 @@ parse_model.nnet <- function(model) {
     )
   }
 
+  # `nnet.default()` fits keep neither `terms` nor `coefnames`, so the names of
+  # the input columns are lost and the input units cannot be tied to columns of
+  # the new data
+  if (is.null(model$terms) && is.null(model$coefnames)) {
+    cli::cli_abort(c(
+      "{.fn tidypredict_fit} does not support {.fn nnet::nnet} models fit with
+       the matrix interface.",
+      "i" = "Refit the model with the formula interface, so that the names of
+             the predictors are available."
+    ))
+  }
+
   vars <- names(attr(model$terms, "dataClasses")) %||% model$coefnames
-  inputs <- map(
-    model$coefnames,
-    ~ list(label = .x, fields = parse_label_lm(.x, vars))
-  )
+  fields <- lm_fields(model, model$coefnames) %||%
+    vector("list", length(model$coefnames))
+  inputs <- map(seq_along(model$coefnames), function(i) {
+    label <- model$coefnames[[i]]
+    list(
+      label = label,
+      fields = fields[[i]] %||% parse_label_lm(label, vars)
+    )
+  })
 
   # Every unit with incoming weights, which is every unit but the bias and the
   # inputs. `nconn` holds the cumulative number of weights, so the weights of
@@ -146,7 +163,15 @@ parse_model.nnet <- function(model) {
   pm$general$n_units <- n_units
   pm$general$n_outputs <- n_outputs
   pm$general$softmax <- isTRUE(model$softmax)
-  pm$classes <- model$lev
+  # `lev` keeps every level of the outcome factor, but `nnet()` drops the levels
+  # no observation fell in, so with more than one output unit the classes are
+  # read off the fitted values, which is also what `predict()` labels its
+  # columns with. A binary outcome has a single, unnamed output unit.
+  pm$classes <- if (n_outputs > 1) {
+    colnames(model$fitted.values) %||% model$lev
+  } else {
+    model$lev
+  }
   pm$inputs <- inputs
   pm$units <- units
 
@@ -198,4 +223,36 @@ tidypredict_test.nnet <- function(
     threshold,
     model$call
   )
+}
+
+# Output metadata ---------------------------------
+
+# `build_fit_formula_nnet()` returns one expression per level for a
+# classification fit, either from `expr_softmax()` or as `1 - p` and `p` for a
+# single logistic output unit, so the per-level values always sum to one. With
+# no levels recorded the single output unit is a plain numeric prediction.
+#' @export
+tidypredict_output_type.pm_nnet <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (is.null(parsed_model_classes(x))) {
+    return("numeric")
+  }
+  "prob"
+}
+
+#' @export
+tidypredict_outcome_levels.pm_nnet <- function(x, ...) {
+  rlang::check_dots_empty()
+  parsed_model_classes(x)
+}
+
+#' @export
+tidypredict_normalized.pm_nnet <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (is.null(parsed_model_classes(x))) {
+    return(NA)
+  }
+  TRUE
 }

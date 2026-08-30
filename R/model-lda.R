@@ -12,8 +12,11 @@ parse_model.lda <- function(model) {
     vars <- names(attr(model$terms, "dataClasses"))
   }
 
-  classes <- model$lev
+  # `lev` keeps every level of the outcome factor, but `lda()` drops the levels
+  # no observation fell in, so `prior`, `means` and the posterior returned by
+  # `predict()` only cover the groups that were actually fit.
   prior <- model$prior
+  classes <- names(prior)
 
   # `predict.lda()` centers the model matrix at the prior-weighted grand mean,
   # projects it onto the discriminant space, and then compares the result to
@@ -29,11 +32,16 @@ parse_model.lda <- function(model) {
     log(prior)
 
   labels <- rownames(coefs)
+  fields <- lm_fields(model, labels)
+  if (!is.null(fields)) {
+    fields <- c(list(NULL), fields)
+  }
   class_terms <- lapply(seq_along(classes), function(i) {
     build_terms(
       c(intercepts[[i]], coefs[, i]),
       c("(Intercept)", labels),
-      vars
+      vars,
+      fields = fields
     )
   })
 
@@ -52,7 +60,8 @@ acceptable_formula.lda <- function(model) {
   acceptable_contrasts(
     columns = colnames(model$means),
     vars = names(attr(model$terms, "dataClasses")),
-    xlevels = model$xlevels
+    xlevels = model$xlevels,
+    terms = model$terms
   )
 
   acceptable_lm(model)

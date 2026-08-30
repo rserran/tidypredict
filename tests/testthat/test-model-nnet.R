@@ -179,6 +179,176 @@ test_that("binary outcomes are handled", {
   expect_equal(unname(rowSums(probs)), rep(1, nrow(df)))
 })
 
+test_that("an unused outcome level is handled (#302)", {
+  skip_if_not_installed("nnet")
+
+  df <- iris
+  df$Species <- factor(df$Species, levels = c(levels(df$Species), "unused"))
+  set.seed(100)
+  model <- suppressWarnings(
+    nnet::nnet(Species ~ ., data = df, size = 3, trace = FALSE)
+  )
+
+  tf <- tidypredict_fit(model)
+  expect_named(tf, levels(iris$Species))
+
+  probs <- sapply(tf, \(f) rlang::eval_tidy(f, df))
+
+  expect_equal(unname(probs), unname(predict(model, df, type = "raw")))
+})
+
+nnet_factor_df <- function(levels_of = identity, ordered = FALSE) {
+  set.seed(1)
+  df <- data.frame(x = rnorm(200), z = rnorm(200))
+  g <- rep(c("a", "b", "c"), length.out = 200)
+  df$f <- factor(levels_of(g), ordered = ordered)
+  df$y <- rnorm(200) + df$x + as.numeric(factor(g))
+  df
+}
+
+test_that("awkward factor levels work", {
+  skip_if_not_installed("nnet")
+
+  dfs <- list(
+    unused = transform(
+      nnet_factor_df(),
+      f = factor(f, levels = c("a", "b", "c", "unused"))
+    ),
+    colon = nnet_factor_df(\(g) paste0(g, ":1")),
+    # levels named after the other predictors in the data
+    colliding = nnet_factor_df(\(g) c(a = "x", b = "z", c = "q")[g])
+  )
+
+  for (df in dfs) {
+    set.seed(100)
+    model <- nnet::nnet(
+      y ~ x + z + f,
+      data = df,
+      size = 2,
+      linout = TRUE,
+      trace = FALSE
+    )
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(model), df),
+      as.numeric(predict(model, df))
+    )
+  }
+})
+
+test_that("an ordered factor is rejected", {
+  skip_if_not_installed("nnet")
+
+  df <- nnet_factor_df(ordered = TRUE)
+  set.seed(100)
+  model <- nnet::nnet(
+    y ~ x + f,
+    data = df,
+    size = 2,
+    linout = TRUE,
+    trace = FALSE
+  )
+
+  expect_snapshot(error = TRUE, tidypredict_fit(model))
+})
+
+test_that("`NA` in newdata gives the same answer as predict()", {
+  skip_if_not_installed("nnet")
+
+  df <- nnet_factor_df()
+  na_df <- df
+  na_df$x[c(2, 5)] <- NA
+  na_df$f[c(1, 3)] <- NA
+
+  set.seed(100)
+  reg <- nnet::nnet(
+    y ~ x + z + f,
+    data = df,
+    size = 2,
+    linout = TRUE,
+    trace = FALSE
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(reg), na_df),
+    as.numeric(predict(reg, na_df))
+  )
+
+  na_iris <- iris
+  na_iris$Petal.Length[1:2] <- NA
+  set.seed(100)
+  cls <- nnet::nnet(Species ~ ., data = iris, size = 3, trace = FALSE)
+  probs <- sapply(tidypredict_fit(cls), \(f) rlang::eval_tidy(f, na_iris))
+  expect_equal(unname(probs), unname(predict(cls, na_iris, type = "raw")))
+})
+
+test_that("`NA` in the training data works", {
+  skip_if_not_installed("nnet")
+
+  df <- nnet_factor_df()
+  train <- df
+  train$x[1:5] <- NA
+
+  set.seed(100)
+  model <- nnet::nnet(
+    y ~ x + z,
+    data = train,
+    size = 2,
+    linout = TRUE,
+    trace = FALSE
+  )
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    as.numeric(predict(model, df))
+  )
+})
+
+test_that("degenerate fit shapes work", {
+  skip_if_not_installed("nnet")
+
+  df <- nnet_factor_df()
+
+  constant <- df
+  constant$y <- 5
+  set.seed(100)
+  model <- nnet::nnet(
+    y ~ x + z,
+    data = constant,
+    size = 2,
+    linout = TRUE,
+    trace = FALSE
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), constant),
+    as.numeric(predict(model, constant))
+  )
+
+  set.seed(100)
+  single_row <- nnet::nnet(
+    y ~ x + z,
+    data = df[1, ],
+    size = 2,
+    linout = TRUE,
+    trace = FALSE
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(single_row), df),
+    as.numeric(predict(single_row, df))
+  )
+
+  set.seed(100)
+  single_predictor <- nnet::nnet(
+    y ~ x,
+    data = df,
+    size = 2,
+    linout = TRUE,
+    trace = FALSE
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(single_predictor), df),
+    as.numeric(predict(single_predictor, df))
+  )
+})
+
 test_that("model can be saved and re-loaded", {
   skip_if_not_installed("nnet")
   skip_if_not_installed("yaml")
@@ -218,6 +388,22 @@ test_that("multiple non classification outputs are rejected", {
   )
 
   expect_snapshot(error = TRUE, tidypredict_fit(model))
+})
+
+test_that("matrix interface fits are rejected", {
+  skip_if_not_installed("nnet")
+
+  set.seed(100)
+  model <- nnet::nnet(
+    as.matrix(mtcars[, c("wt", "hp")]),
+    mtcars$mpg,
+    size = 2,
+    linout = TRUE,
+    trace = FALSE
+  )
+
+  expect_snapshot(error = TRUE, tidypredict_fit(model))
+  expect_snapshot(error = TRUE, parse_model(model))
 })
 
 test_that("tidypredict_test errors for classification nnet models", {
@@ -282,4 +468,26 @@ test_that("SQL predictions match native predict", {
   res <- dplyr::collect(dplyr::mutate(db, fit = !!tidypredict_fit(model)))
 
   expect_equal(res$fit, as.numeric(predict(model, mtcars)))
+})
+
+test_that("a coefficient label colliding with a variable name works (#376)", {
+  skip_if_not_installed("nnet")
+
+  set.seed(1)
+  df <- data.frame(
+    g = factor(rep(c("x1", "y2", "z3"), length.out = 60)),
+    gy2 = rnorm(60)
+  )
+  df$y <- rnorm(60) + as.numeric(df$g) + df$gy2
+
+  set.seed(2)
+  model <- nnet::nnet(
+    y ~ g + gy2,
+    data = df,
+    size = 2,
+    linout = TRUE,
+    trace = FALSE
+  )
+
+  expect_false(tidypredict_test(model, df)$alert)
 })

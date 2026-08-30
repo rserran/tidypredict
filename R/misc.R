@@ -18,8 +18,49 @@ expr_and <- function(x, y) {
   expr(!!x & !!y)
 }
 
+# Number of terms above which `reduce_addition()` sums in a balanced shape
+# rather than from the left.
+#
+# Measured rather than guessed. A left fold of `n` terms nests the `+` calls `n`
+# deep, and at the default `options(expressions = 5000)` the deepest that still
+# evaluates is about 4990 terms, falling to about 4890 when the call arrives 100
+# frames down, as it does through dplyr. Both numbers move with `expressions`
+# and with how deep the caller already is, so the threshold wants a wide margin
+# rather than a close one: 1000 sits a fivefold margin under the wall and still
+# well above every ensemble at its package default, the largest of which sums
+# 500 terms.
+addition_balance_at <- 1000L
+
+# Sum a set of expressions.
+#
+# The left fold is preferred: it is what the modelling packages do themselves,
+# so the result usually agrees with `predict()` bit for bit, and it prints as
+# the flat `a + b + c` rather than a thicket of parentheses. Its nesting depth
+# is the number of terms, though, and past a few thousand R gives up with
+# "evaluation nested too deeply". Only an ensemble gets near that, and only a
+# large one: a `bart()` fit sums `n_draws * ntree` leaf values, which is 10,000
+# terms at dbarts' default `ntree`. Those are summed in a balanced shape
+# instead, which nests `log2(length(x))` deep and so always evaluates.
 reduce_addition <- function(x) {
-  reduce(x, expr_addition)
+  if (length(x) < addition_balance_at) {
+    return(reduce(x, expr_addition))
+  }
+  reduce_addition_balanced(x)
+}
+
+reduce_addition_balanced <- function(x) {
+  n <- length(x)
+  if (n == 0) {
+    return(NULL)
+  }
+  if (n == 1) {
+    return(x[[1]])
+  }
+  mid <- n %/% 2
+  expr_addition(
+    reduce_addition_balanced(x[seq_len(mid)]),
+    reduce_addition_balanced(x[seq.int(mid + 1, n)])
+  )
 }
 
 reduce_subtraction <- function(x) {
@@ -61,6 +102,36 @@ expr_na_if_incomplete <- function(f, cols, missing = NA_real_) {
   }
   any_missing <- reduce_or(map(cols, \(col) expr(is.na(!!rlang::sym(col)))))
   expr(ifelse(!!any_missing, !!missing, !!f))
+}
+
+# Keep a constant expression the length of the data it is evaluated against.
+#
+# When every tree in a model is a stump, the generated expression mentions no
+# column at all, so `rlang::eval_tidy()` has nothing to recycle against and
+# returns a length-1 scalar instead of one prediction per row. Mentioning a
+# column is what restores the length, so the guard only applies to an
+# expression that mentions none: for every other model this returns `f`
+# untouched, and the formula is exactly what it was before.
+#
+# `f` deliberately appears in *both* branches of the `ifelse()`, which is what
+# makes the wrapper inert: whichever way the test goes the value is the same,
+# so no prediction changes and a missing predictor is not turned into `NA` the
+# way `expr_na_if_incomplete()` does. Do not "simplify" this to a single
+# branch or to a bare `f`; dropping either branch either changes the value for
+# rows with a missing predictor or removes the column reference and brings the
+# scalar back. The constant is short, so writing it twice costs little.
+#
+# `cols[[1]]` is an arbitrary choice: any column works, since the reference is
+# only there to supply a length. It must, though, be a column that is
+# guaranteed to be present in `newdata`, so callers pass the model's own
+# predictor names rather than, say, a name scraped from a split.
+expr_recycle_over_column <- function(f, cols) {
+  cols <- cols[!is.na(cols)]
+  if (length(cols) == 0 || length(all.vars(f)) > 0) {
+    return(f)
+  }
+  col <- rlang::sym(cols[[1]])
+  expr(ifelse(is.na(!!col), !!f, !!f))
 }
 
 # Average a set of expressions, as forests do over their trees. `n` is taken

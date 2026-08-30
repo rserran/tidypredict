@@ -161,6 +161,94 @@ test_that("a row far outside the training range matches predict() (#299)", {
   expect_equal(unname(probs), unname(predict(model, far)$posterior))
 })
 
+test_that("an unused outcome level is handled (#302)", {
+  skip_if_not_installed("MASS")
+
+  df <- iris
+  df$Species <- factor(df$Species, levels = c(levels(df$Species), "unused"))
+  model <- suppressWarnings(MASS::lda(Species ~ ., data = df))
+
+  tf <- tidypredict_fit(model)
+  expect_named(tf, levels(iris$Species))
+
+  probs <- sapply(tf, \(f) rlang::eval_tidy(f, df))
+
+  expect_equal(unname(probs), unname(predict(model, df)$posterior))
+})
+
+lda_na_data <- function(seed = 1) {
+  set.seed(seed)
+  df <- data.frame(
+    x = rnorm(90),
+    f = factor(rep(c("p", "q", "r"), length.out = 90))
+  )
+  df$cls <- factor(ifelse(df$x + as.numeric(df$f) > 1.5, "a", "b"))
+  df
+}
+
+test_that("newdata containing NA matches predict()", {
+  skip_if_not_installed("MASS")
+
+  df <- lda_na_data()
+  model <- MASS::lda(cls ~ x + f, data = df)
+
+  nd <- df
+  nd$x[1:3] <- NA
+  nd$f[4:5] <- NA
+
+  probs <- sapply(tidypredict_fit(model), \(f) rlang::eval_tidy(f, nd))
+  native <- suppressWarnings(predict(model, nd)$posterior)
+
+  expect_true(anyNA(native))
+  expect_equal(unname(probs), unname(native))
+})
+
+test_that("training data containing NA matches predict()", {
+  skip_if_not_installed("MASS")
+
+  df <- lda_na_data()
+  df$x[1:5] <- NA
+  model <- MASS::lda(cls ~ x + f, data = df)
+  complete <- df[stats::complete.cases(df), ]
+
+  probs <- sapply(tidypredict_fit(model), \(f) rlang::eval_tidy(f, complete))
+
+  expect_equal(unname(probs), unname(predict(model, complete)$posterior))
+})
+
+test_that("a single-column model matrix and a collinear fit are handled", {
+  skip_if_not_installed("MASS")
+
+  df <- lda_na_data()
+  single <- MASS::lda(cls ~ x, data = df)
+  expect_equal(
+    unname(sapply(tidypredict_fit(single), \(f) rlang::eval_tidy(f, df))),
+    unname(predict(single, df)$posterior)
+  )
+
+  df$x2 <- df$x
+  collinear <- suppressWarnings(MASS::lda(cls ~ x + x2, data = df))
+  expect_equal(
+    unname(sapply(tidypredict_fit(collinear), \(f) rlang::eval_tidy(f, df))),
+    unname(predict(collinear, df)$posterior)
+  )
+})
+
+test_that("a factor level containing a colon matches predict() (#391)", {
+  skip_if_not_installed("MASS")
+  set.seed(1)
+  df <- data.frame(
+    x = rnorm(90),
+    f = factor(rep(c("a:b", "c:d", "e"), length.out = 90))
+  )
+  df$cls <- factor(ifelse(df$x + as.numeric(df$f) > 1.5, "a", "b"))
+
+  model <- MASS::lda(cls ~ x + f, data = df)
+  probs <- sapply(tidypredict_fit(model), \(f) rlang::eval_tidy(f, df))
+
+  expect_equal(unname(probs), unname(predict(model, df)$posterior))
+})
+
 test_that("an ordered factor is rejected (#343)", {
   skip_if_not_installed("MASS")
   # R fits an ordered factor with `contr.poly`, whose columns are named `.L`,
@@ -211,6 +299,7 @@ test_that("SQL translation works", {
 })
 
 test_that("lda is handled with parsnip", {
+  skip_if_not_installed("parsnip")
   skip_if_not_installed("MASS")
   skip_if_not_installed("discrim")
 
@@ -226,4 +315,20 @@ test_that("lda is handled with parsnip", {
   native <- as.matrix(predict(model, iris, type = "prob"))
 
   expect_equal(unname(probs), unname(native))
+})
+
+test_that("a coefficient label colliding with a variable name works (#376)", {
+  skip_if_not_installed("MASS")
+
+  set.seed(1)
+  df <- data.frame(
+    g = factor(rep(c("x1", "y2", "z3"), length.out = 60)),
+    gy2 = rnorm(60)
+  )
+  df$cls <- factor(ifelse(df$gy2 + as.numeric(df$g) > 2, "a", "b"))
+
+  model <- MASS::lda(cls ~ g + gy2, data = df)
+  probs <- rlang::eval_tidy(tidypredict_fit(model)[["b"]], df)
+
+  expect_equal(probs, unname(predict(model, df)$posterior[, "b"]))
 })

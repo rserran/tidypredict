@@ -5,16 +5,18 @@ catboost_identity_objectives <- c(
   "MAE",
   "Quantile",
   "MAPE",
-  "Poisson",
   "Huber",
   "LogCosh",
-  "Expectile",
-  "Tweedie"
+  "Expectile"
 )
+# Log-link objectives. CatBoost's `prediction_type = "Exponent"` is exactly
+# `exp()` of the raw formula value for these, which is the response scale.
+catboost_exp_objectives <- c("Poisson", "Tweedie")
 catboost_sigmoid_objectives <- c("Logloss", "CrossEntropy")
 catboost_multiclass_objectives <- c("MultiClass", "MultiClassOneVsAll")
 catboost_supported_objectives <- c(
   catboost_identity_objectives,
+  catboost_exp_objectives,
   catboost_sigmoid_objectives,
   catboost_multiclass_objectives
 )
@@ -163,8 +165,7 @@ parse_model.catboost.Model <- function(model) {
 #'   training.
 #' @return The parsed model with category mappings added
 #'
-#' @examples
-#' \dontrun{
+#' @examplesIf rlang::is_installed("catboost")
 #' # For raw CatBoost models with categorical features:
 #' pm <- parse_model(catboost_model)
 #' pm <- set_catboost_categories(pm, catboost_model, training_data)
@@ -172,7 +173,6 @@ parse_model.catboost.Model <- function(model) {
 #'
 #' # For parsnip/bonsai models, this is not needed:
 #' # tidypredict_fit(parsnip_model_fit)  # works automatically
-#' }
 #' @export
 set_catboost_categories <- function(parsed_model, model, data) {
   if (!inherits(parsed_model, "pm_catboost")) {
@@ -717,7 +717,18 @@ build_fit_formula_catboost_nested <- function(parsedmodel) {
     cli::cli_abort("Model has no trees.")
   }
 
-  objective <- parsedmodel$general$params$objective %||% "RMSE"
+  objective <- catboost_parsed_objective(parsedmodel)
+  catboost_check_objective(parsedmodel)
+
+  if (objective %in% catboost_multiclass_objectives) {
+    return(build_fit_formula_catboost_multiclass_nested(parsedmodel, objective))
+  }
+
+  catboost_combine(extract_catboost_trees_nested(parsedmodel), parsedmodel)
+}
+
+catboost_check_objective <- function(parsedmodel) {
+  objective <- catboost_parsed_objective(parsedmodel)
 
   if (!objective %in% catboost_supported_objectives) {
     cli::cli_abort(
@@ -728,17 +739,22 @@ build_fit_formula_catboost_nested <- function(parsedmodel) {
     )
   }
 
-  if (objective %in% catboost_multiclass_objectives) {
-    return(build_fit_formula_catboost_multiclass_nested(parsedmodel, objective))
-  }
+  invisible(parsedmodel)
+}
 
-  # Extract nested trees
-  trees <- extract_catboost_trees_nested(parsedmodel)
-  f <- reduce_addition(trees)
-  f <- apply_catboost_scale_bias(f, parsedmodel)
+# Combine per-tree expressions into the model's prediction: an additive sum
+# rescaled by the model's `scale` and `bias`, then the objective's inverse link.
+catboost_combine <- function(trees, parsedmodel) {
+  objective <- catboost_parsed_objective(parsedmodel)
+
+  f <- apply_catboost_scale_bias(reduce_addition(trees), parsedmodel)
 
   if (objective %in% catboost_sigmoid_objectives) {
     f <- expr_logistic(f)
+  }
+
+  if (objective %in% catboost_exp_objectives) {
+    f <- expr(exp(!!f))
   }
 
   f
@@ -898,21 +914,89 @@ build_nested_catboost_categorical <- function(split_info, cat_mapping) {
   expr(!!col_name != !!category)
 }
 
-# For {orbital} -----------------------------------------------
+# Extractors --------------------------------------------------
 
-#' Extract processed CatBoost trees
-#'
-#' For use in orbital package.
-#' @param model A CatBoost model object
-#' @keywords internal
 #' @export
-.extract_catboost_trees <- function(model) {
-  if (!inherits(model, "catboost.Model")) {
+tidypredict_trees.catboost.Model <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  extract_catboost_trees_nested(parse_model(x))
+}
+
+#' @export
+tidypredict_combine_trees.catboost.Model <- function(x, trees, ...) {
+  rlang::check_dots_empty()
+  check_trees_arg(trees)
+
+  parsedmodel <- parse_model(x)
+  catboost_check_objective(parsedmodel)
+
+  # A multiclass fit is one expression per class rather than one for the model.
+  # `tidypredict_trees()` returns the trees of such a model as a flat list in
+  # which they belong to different classes round-robin, so summing them is not
+  # an approximation of the fit.
+  if (
+    catboost_parsed_objective(parsedmodel) %in% catboost_multiclass_objectives
+  ) {
     cli::cli_abort(
-      "{.arg model} must be {.cls catboost.Model}, not {.obj_type_friendly {model}}."
+      c(
+        "Multiclass {.pkg catboost} trees cannot be combined into one
+         expression.",
+        i = "The fit is one expression per class.",
+        i = "Use {.fn tidypredict_fit} for the whole model instead."
+      ),
+      class = "tidypredict_no_combiner"
     )
   }
 
-  parsedmodel <- parse_model(model)
-  extract_catboost_trees_nested(parsedmodel)
+  catboost_combine(trees, parsedmodel)
+}
+
+#' @export
+tidypredict_n_trees.catboost.Model <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  # Not `niter`: for multiclass models CatBoost stores one tree per class per
+  # round, so `niter` is the number of rounds rather than the number of trees.
+  length(tidypredict_trees(x))
+}
+
+# Output metadata ---------------------------------
+
+# The same objective groups `build_fit_formula_catboost_nested()` switches on.
+catboost_parsed_objective <- function(x) {
+  x$general$params$objective %||% "RMSE"
+}
+
+#' @export
+tidypredict_output_type.pm_catboost <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  objective <- catboost_parsed_objective(x)
+  if (
+    objective %in%
+      c(catboost_multiclass_objectives, catboost_sigmoid_objectives)
+  ) {
+    return("prob")
+  }
+  "numeric"
+}
+
+#' @export
+tidypredict_outcome_levels.pm_catboost <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  # CatBoost is fit on integer labels, and the multiclass expressions come back
+  # named `class_0`, `class_1` and so on, which are positions, not levels.
+  NULL
+}
+
+#' @export
+tidypredict_normalized.pm_catboost <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (catboost_parsed_objective(x) %in% catboost_multiclass_objectives) {
+    return(TRUE)
+  }
+  NA
 }

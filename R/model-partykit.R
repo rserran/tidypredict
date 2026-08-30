@@ -289,19 +289,12 @@ tidypredict_fit.party <- function(model, ...) {
   generate_nested_case_when_tree(tree_info, missing = "na")
 }
 
-# For {orbital}
-#' Extract classprob trees for partykit models
-#'
-#' For use in orbital package.
-#' @param model A partykit model object
-#' @keywords internal
+# Extractors --------------------------------------------------
+
 #' @export
-.extract_partykit_classprob <- function(model) {
-  if (!inherits(model, "party")) {
-    cli::cli_abort(
-      "{.arg model} must be {.cls party}, not {.obj_type_friendly {model}}."
-    )
-  }
+tidypredict_class_exprs.party <- function(x, ...) {
+  rlang::check_dots_empty()
+  model <- x
 
   extract_classprob <- function(model) {
     mod <- model$fitted
@@ -326,14 +319,54 @@ tidypredict_fit.party <- function(model, ...) {
 
   tree_info_full <- partykit_tree_info_full(model)
 
-  map(seq_len(ncol(preds)), function(i) {
+  res <- map(seq_len(ncol(preds)), function(i) {
     generate_nested_case_when_tree(
       tree_info_with_predictions(tree_info_full, preds[, i]),
       missing = "na"
     )
   })
+  # The generic is named by outcome level so callers never have to assume this
+  # matches `levels()` of the outcome positionally.
+  stats::setNames(res, colnames(preds))
 }
 
+#' @exportS3Method
 build_tree_formula.pm_tree_party <- function(model) {
   generate_nested_case_when_tree(model$tree_info, missing = "na")
+}
+
+# Output metadata ---------------------------------
+
+# `party_tree_info()` reads the mode off the response column of `fitted`, and
+# the parsed form does not record it, so the fitted object answers.
+party_is_classification <- function(x) {
+  is.factor(x$fitted[["(response)"]])
+}
+
+#' @export
+tidypredict_output_type.party <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (party_is_classification(x)) {
+    return("class")
+  }
+  "numeric"
+}
+
+#' @export
+tidypredict_outcome_levels.party <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (party_is_classification(x)) {
+    return(levels(x$fitted[["(response)"]]))
+  }
+  NULL
+}
+
+#' @export
+tidypredict_normalized.party <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  # A single expression, so there are no per-level values to sum.
+  NA
 }

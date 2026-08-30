@@ -70,6 +70,28 @@ test_that("predictions match native predict", {
   expect_false(tidypredict_test(model, df)$alert)
 })
 
+test_that("predictions match at dbarts' default `ntree` (#305)", {
+  skip_if_not_installed("dbarts")
+
+  set.seed(104)
+  df <- bart_data(n = 40)
+  model <- bart_fit(df, ntree = 200, ndpost = 50)
+
+  # 10,000 leaf values, well over the point at which the terms are summed in a
+  # balanced shape rather than from the left. A left fold of them nests deeper
+  # than R will evaluate.
+  pm <- parse_model(model)
+  expect_gt(length(pm$trees), addition_balance_at)
+
+  tf <- tidypredict_fit(model)
+  expect_lt(expr_depth(tf), 100)
+
+  expect_equal(
+    rlang::eval_tidy(tf, df),
+    colMeans(predict(model, df))
+  )
+})
+
 test_that("predictions match with a matrix of predictors", {
   skip_if_not_installed("dbarts")
 
@@ -274,6 +296,101 @@ test_that("models fit on unnamed predictors are not supported", {
   )
 
   expect_snapshot(error = TRUE, tidypredict_fit(model))
+})
+
+test_that("awkward factor level names match predict", {
+  skip_if_not_installed("dbarts")
+
+  # An unused level, a level holding a `:`, and a level whose name is also a
+  # column in the data all break a parser that splits level names by hand.
+  set.seed(200)
+  df <- bart_data()
+  df$f3 <- factor(
+    sample(c("a:b", "x1", "c d"), nrow(df), TRUE),
+    levels = c("a:b", "x1", "c d", "unused")
+  )
+  model <- bart_fit(df, cols = c("x1", "f3"))
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    colMeans(predict(model, df))
+  )
+})
+
+test_that("ordered factor predictors match predict", {
+  skip_if_not_installed("dbarts")
+
+  set.seed(201)
+  df <- bart_data()
+  df$f3 <- factor(
+    as.character(df$f3),
+    levels = c("p", "q", "r"),
+    ordered = TRUE
+  )
+  model <- bart_fit(df, cols = c("x1", "f3"))
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    colMeans(predict(model, df))
+  )
+})
+
+test_that("newdata containing NA matches predict on the rows it keeps", {
+  skip_if_not_installed("dbarts")
+
+  set.seed(202)
+  df <- bart_data()
+  model <- bart_fit(df, cols = c("x1", "x2"))
+
+  nd <- df
+  nd$x1[1:5] <- NA_real_
+
+  # `dbarts` drops incomplete rows rather than scoring them, so it returns no
+  # value for the blanked rows to compare against.
+  reference <- colMeans(predict(model, nd))
+  expect_length(reference, nrow(df) - 5)
+
+  fit <- rlang::eval_tidy(tidypredict_fit(model), nd)
+  expect_length(fit, nrow(df))
+  expect_equal(fit[-(1:5)], unname(reference))
+})
+
+test_that("a constant outcome and a single predictor match predict", {
+  skip_if_not_installed("dbarts")
+
+  set.seed(203)
+  df <- bart_data()
+
+  # `dbarts` warns about the perfect fit it gets on a constant outcome, and
+  # every tree is a stump, so the formula collapses to a scalar.
+  constant <- suppressWarnings(bart_fit(
+    transform(df, y = 5),
+    cols = c("x1", "x2")
+  ))
+  fit <- rlang::eval_tidy(tidypredict_fit(constant), df)
+  expect_length(fit, 1)
+  expect_equal(rep(fit, nrow(df)), unname(colMeans(predict(constant, df))))
+
+  single_column <- bart_fit(df, cols = "x1")
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(single_column), df),
+    colMeans(predict(single_column, df))
+  )
+})
+
+test_that("constant predictors match predict (#363)", {
+  skip_if_not_installed("dbarts")
+
+  set.seed(204)
+  df <- bart_data()
+  df$xconst <- 1
+  df$fconst <- factor(rep("z", nrow(df)))
+
+  model <- bart_fit(df, cols = c("xconst", "x1", "fconst", "f3", "x2"))
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    colMeans(predict(model, df))
+  )
 })
 
 # Tests for .extract_bart_trees() and .extract_bart_scaling() ------------------

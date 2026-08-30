@@ -129,24 +129,25 @@ test_that("produced case_when uses .default", {
   expect_match(fit_text, "\\.default")
 })
 
-# .extract_rpart_classprob tests ------------------------------------------
+# tidypredict_class_exprs tests -------------------------------------------
 
-test_that(".extract_rpart_classprob returns list of expressions", {
+test_that("tidypredict_class_exprs returns list of expressions", {
   skip_if_not_installed("rpart")
   model <- rpart::rpart(Species ~ Sepal.Length + Sepal.Width, data = iris)
 
-  exprs <- .extract_rpart_classprob(model)
+  exprs <- tidypredict_class_exprs(model)
 
   expect_type(exprs, "list")
   expect_length(exprs, 3)
-  expect_true(all(vapply(exprs, typeof, character(1)) == "language"))
+  expect_named(exprs, levels(iris$Species))
+  expect_all_equal(vapply(exprs, typeof, character(1)), "language")
 })
 
-test_that(".extract_rpart_classprob results match predict probabilities", {
+test_that("tidypredict_class_exprs results match predict probabilities", {
   skip_if_not_installed("rpart")
   model <- rpart::rpart(Species ~ Sepal.Length + Sepal.Width, data = iris)
 
-  exprs <- .extract_rpart_classprob(model)
+  exprs <- tidypredict_class_exprs(model)
   eval_env <- rlang::new_environment(
     data = as.list(iris),
     parent = asNamespace("dplyr")
@@ -159,15 +160,15 @@ test_that(".extract_rpart_classprob results match predict probabilities", {
   expect_equal(unname(combined), unname(native))
 })
 
-test_that(".extract_rpart_classprob errors on non-rpart model", {
+test_that("tidypredict_class_exprs errors on non-rpart model", {
   skip_if_not_installed("rpart")
-  expect_snapshot(.extract_rpart_classprob(list()), error = TRUE)
+  expect_snapshot(tidypredict_class_exprs(list()), error = TRUE)
 })
 
-test_that(".extract_rpart_classprob errors on regression model", {
+test_that("tidypredict_class_exprs errors on regression model", {
   skip_if_not_installed("rpart")
   model <- rpart::rpart(mpg ~ cyl + wt, data = mtcars)
-  expect_snapshot(.extract_rpart_classprob(model), error = TRUE)
+  expect_snapshot(tidypredict_class_exprs(model), error = TRUE)
 })
 
 # Nested case_when tests --------------------------------------------------
@@ -194,11 +195,11 @@ test_that("tidypredict_fit works for classification", {
   expect_equal(fit_pred, original_pred)
 })
 
-test_that(".extract_rpart_classprob matches original model probabilities", {
+test_that("tidypredict_class_exprs matches original model probabilities", {
   skip_if_not_installed("rpart")
   model <- rpart::rpart(Species ~ Sepal.Length + Sepal.Width, data = iris)
 
-  exprs <- .extract_rpart_classprob(model)
+  exprs <- tidypredict_class_exprs(model)
 
   eval_env <- rlang::new_environment(
     data = as.list(iris),
@@ -305,6 +306,113 @@ test_that("every usesurrogate mode is followed (#294)", {
     expect_equal(
       rlang::eval_tidy(tidypredict_fit(model), new_df),
       unname(predict(model, new_df))
+    )
+  }
+})
+
+test_that("awkward factor level names match predict()", {
+  skip_if_not_installed("rpart")
+
+  # An unused level, a level holding a `:`, and a level whose name is also a
+  # column in the data all break a parser that splits level names by hand.
+  df <- mtcars
+  df$g <- factor(
+    c("a:b", "wt", "c d")[df$cyl / 2 - 1],
+    levels = c("a:b", "wt", "c d", "unused")
+  )
+  model <- rpart::rpart(mpg ~ g + wt, data = df)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    unname(predict(model, df))
+  )
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(parse_model(model)), df),
+    unname(predict(model, df))
+  )
+})
+
+test_that("ordered factor predictors match predict()", {
+  skip_if_not_installed("rpart")
+
+  df <- transform(mtcars, gear = factor(gear, ordered = TRUE))
+  model <- rpart::rpart(mpg ~ gear + wt, data = df)
+
+  expect_equal(
+    rlang::eval_tidy(tidypredict_fit(model), df),
+    unname(predict(model, df))
+  )
+})
+
+test_that("an unused outcome level matches predict()", {
+  skip_if_not_installed("rpart")
+
+  # `Species` keeps all three levels, but only two of them occur.
+  df <- iris[iris$Species != "virginica", ]
+  model <- rpart::rpart(Species ~ Sepal.Length + Petal.Length, data = df)
+
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(model), df)),
+    as.character(predict(model, df, type = "class"))
+  )
+})
+
+test_that("training data containing NA matches predict() in every mode", {
+  skip_if_not_installed("rpart")
+
+  df <- mtcars
+  df$wt[1:5] <- NA_real_
+
+  for (mode in 0:2) {
+    model <- rpart::rpart(
+      mpg ~ wt + disp + hp,
+      data = df,
+      control = rpart::rpart.control(usesurrogate = mode)
+    )
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(model), df),
+      unname(predict(model, df))
+    )
+  }
+})
+
+test_that("a constant outcome matches predict()", {
+  skip_if_not_installed("rpart")
+
+  df <- transform(mtcars, const = 5)
+  model <- rpart::rpart(const ~ wt + cyl, data = df)
+
+  # Neither fit can split, so each collapses to a scalar rather than a vector.
+  fit <- rlang::eval_tidy(tidypredict_fit(model), df)
+  expect_length(fit, 1)
+  expect_equal(rep(fit, nrow(df)), unname(predict(model, df)))
+})
+
+test_that("single-row training data matches predict()", {
+  skip_if_not_installed("rpart")
+
+  model <- rpart::rpart(mpg ~ wt, data = mtcars[1, ])
+
+  fit <- rlang::eval_tidy(tidypredict_fit(model), mtcars)
+  expect_length(fit, 1)
+  expect_equal(rep(fit, nrow(mtcars)), unname(predict(model, mtcars)))
+})
+
+test_that("a value at a threshold and at its float32 image matches predict()", {
+  skip_if_not_installed("rpart")
+
+  # `rpart` keeps its cut points as doubles, so a value at the float32 image of
+  # a cut has to land on the same side as `predict()` sends it.
+  model <- rpart::rpart(mpg ~ wt + disp, data = mtcars)
+  cuts <- unname(model$splits[, "index"])
+
+  for (col in c("wt", "disp")) {
+    probe <- mtcars[rep(1, length(cuts) * 2), ]
+    probe[[col]] <- c(cuts, as_f32(cuts))
+
+    expect_equal(
+      rlang::eval_tidy(tidypredict_fit(model), probe),
+      unname(predict(model, probe))
     )
   }
 })

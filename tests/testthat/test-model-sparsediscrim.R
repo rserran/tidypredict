@@ -130,6 +130,88 @@ test_that("categorical predictors are handled", {
   )
 })
 
+sparsediscrim_factor_data <- function(levels, ordered = FALSE, seed = 1) {
+  set.seed(seed)
+  df <- data.frame(
+    x = rnorm(90),
+    f = factor(rep(levels, length.out = 90), levels = levels, ordered = ordered)
+  )
+  df$cls <- factor(ifelse(df$x + as.numeric(df$f) > 1.5, "a", "b"))
+  df
+}
+
+test_that("special-character, unused and ordered factor levels are handled", {
+  skip_if_not_installed("sparsediscrim")
+  # The formula method builds its own full-dummy model matrix and names every
+  # column after the level it stands for, whatever the contrasts say.
+  colon <- sparsediscrim_factor_data(c("a:b", "c:d", "e"))
+  model <- sparsediscrim::lda_diag(cls ~ x + f, colon)
+  expect_equal(
+    unname(sparsediscrim_probs(model, colon)),
+    unname(as.matrix(predict(model, colon, type = "prob")))
+  )
+
+  unused <- sparsediscrim_factor_data(c("p", "q", "r"))
+  unused$f <- factor(unused$f, levels = c("p", "q", "r", "unused"))
+  model <- suppressWarnings(sparsediscrim::lda_diag(cls ~ x + f, unused))
+  expect_equal(
+    unname(sparsediscrim_probs(model, unused)),
+    unname(as.matrix(predict(model, unused, type = "prob")))
+  )
+
+  ord <- sparsediscrim_factor_data(c("p", "q", "r"), ordered = TRUE)
+  model <- sparsediscrim::lda_diag(cls ~ x + f, ord)
+  expect_equal(
+    unname(sparsediscrim_probs(model, ord)),
+    unname(as.matrix(predict(model, ord, type = "prob")))
+  )
+})
+
+test_that("newdata containing NA matches predict()", {
+  skip_if_not_installed("sparsediscrim")
+
+  df <- sparsediscrim_factor_data(c("p", "q", "r"))
+  model <- sparsediscrim::lda_diag(cls ~ x + f, df)
+
+  nd <- df
+  nd$x[1:3] <- NA
+
+  probs <- sparsediscrim_probs(model, nd)
+  native <- as.matrix(predict(model, nd, type = "prob"))
+
+  expect_true(anyNA(native))
+  expect_equal(unname(probs), unname(native))
+})
+
+test_that("a colliding model matrix column is rejected (#398)", {
+  skip_if_not_installed("sparsediscrim")
+
+  set.seed(1)
+  df <- data.frame(
+    g = factor(rep(c("x1", "y2", "z3"), length.out = 60)),
+    gy2 = rnorm(60)
+  )
+  df$cls <- factor(ifelse(df$gy2 + as.numeric(df$g) > 2, "a", "b"))
+
+  model <- sparsediscrim::lda_diag(cls ~ g + gy2, df)
+
+  # `predict()` selects the duplicated `gy2` column twice and never sees the
+  # predictor, so it disagrees with the fit it came from.
+  expect_snapshot(tidypredict_fit(model), error = TRUE)
+})
+
+test_that("an ordered factor is rejected with parsnip (#393)", {
+  skip_if_not_installed("parsnip")
+  skip_if_not_installed("sparsediscrim")
+  skip_if_not_installed("discrim")
+
+  df <- sparsediscrim_factor_data(c("p", "q", "r"), ordered = TRUE)
+  spec <- parsnip::discrim_linear(engine = "sparsediscrim")
+  model <- parsnip::fit(spec, cls ~ x + f, df)
+
+  expect_snapshot(tidypredict_fit(model), error = TRUE)
+})
+
 test_that("estimated priors are handled", {
   skip_if_not_installed("sparsediscrim")
 
@@ -218,6 +300,7 @@ test_that("SQL translation works", {
 })
 
 test_that("sparsediscrim is handled with parsnip", {
+  skip_if_not_installed("parsnip")
   skip_if_not_installed("sparsediscrim")
   skip_if_not_installed("discrim")
 
@@ -236,6 +319,7 @@ test_that("sparsediscrim is handled with parsnip", {
 })
 
 test_that("all regularization methods are handled with parsnip", {
+  skip_if_not_installed("parsnip")
   skip_if_not_installed("sparsediscrim")
   skip_if_not_installed("discrim")
 
@@ -254,6 +338,7 @@ test_that("all regularization methods are handled with parsnip", {
 })
 
 test_that("categorical predictors are handled with parsnip", {
+  skip_if_not_installed("parsnip")
   skip_if_not_installed("sparsediscrim")
   skip_if_not_installed("discrim")
 

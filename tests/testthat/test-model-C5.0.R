@@ -187,6 +187,38 @@ test_that("a boosted vote tie goes to the default class (#287)", {
   expect_equal(rlang::eval_tidy(fit, data.frame(x = 1)), "c")
 })
 
+test_that("boosted models with NA in newdata match predict() (#416)", {
+  skip_if_not_installed("C50")
+  set.seed(11)
+  n <- 400
+  df <- data.frame(
+    v1 = rnorm(n),
+    v2 = rnorm(n),
+    f1 = factor(sample(letters[1:4], n, TRUE))
+  )
+  lp <- df$v1 - 2 * df$v2 + 0.7 * as.integer(df$f1) + rnorm(n)
+  df$g <- factor(c("A", "B", "C")[cut(lp, 3, labels = FALSE)])
+
+  nd <- df
+  for (col in c("v1", "v2", "f1")) {
+    nd[[col]][sample(n, 60)] <- NA
+  }
+
+  for (trials in c(3L, 5L)) {
+    model <- C50::C5.0(g ~ ., data = df, trials = trials)
+    expected <- as.character(predict(model, nd))
+
+    expect_equal(
+      as.character(rlang::eval_tidy(tidypredict_fit(model), nd)),
+      expected
+    )
+    expect_equal(
+      as.character(rlang::eval_tidy(tidypredict_fit(parse_model(model)), nd)),
+      expected
+    )
+  }
+})
+
 test_that("boosted models round-trip through parse_model()", {
   skip_if_not_installed("C50")
   model <- C50::C5.0(iris[, 1:4], iris$Species, trials = 5)
@@ -255,6 +287,7 @@ test_that("errors on unsupported configurations", {
 })
 
 test_that("SQL translation works", {
+  skip_if_not_installed("dbplyr")
   skip_if_not_installed("C50")
   df <- mtcars
   df$vs <- factor(df$vs)
@@ -284,6 +317,7 @@ test_that("predictions round-trip through a SQLite database", {
 })
 
 test_that("model can be saved and re-loaded", {
+  skip_if_not_installed("yaml")
   skip_if_not_installed("C50")
   df <- mtcars
   df$vs <- factor(df$vs)
@@ -357,6 +391,40 @@ test_that("rule-based models with subset and equality conditions match predict()
   expect_equal(fit_pred, as.character(predict(model, attrition)))
 })
 
+test_that("rule-based models with NA in newdata match predict() (#415)", {
+  skip_if_not_installed("C50")
+  set.seed(9)
+  n <- 400
+  df <- data.frame(
+    v1 = rnorm(n),
+    v2 = rnorm(n),
+    f1 = factor(sample(letters[1:4], n, TRUE))
+  )
+  lp <- df$v1 - 2 * df$v2 + 0.7 * as.integer(df$f1) + rnorm(n)
+  df$g <- factor(c("A", "B", "C")[cut(lp, 3, labels = FALSE)])
+  model <- C50::C5.0(
+    g ~ .,
+    data = df,
+    rules = TRUE,
+    control = C50::C5.0Control(subset = TRUE)
+  )
+
+  nd <- df
+  for (col in c("v1", "v2", "f1")) {
+    nd[[col]][sample(n, 60)] <- NA
+  }
+  expected <- as.character(predict(model, nd))
+
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(model), nd)),
+    expected
+  )
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(parse_model(model)), nd)),
+    expected
+  )
+})
+
 test_that("rule-based models round-trip through parse_model()", {
   skip_if_not_installed("C50")
   model <- C50::C5.0(iris[, 1:4], iris$Species, rules = TRUE)
@@ -367,6 +435,7 @@ test_that("rule-based models round-trip through parse_model()", {
 })
 
 test_that("rule-based models can be saved and re-loaded", {
+  skip_if_not_installed("yaml")
   skip_if_not_installed("C50")
   model <- C50::C5.0(iris[, 1:4], iris$Species, rules = TRUE)
 
@@ -465,7 +534,140 @@ test_that("tidypredict_test() compares against predict(), not against itself", {
   expect_true(any(result$raw_results$fit != "setosa"))
 })
 
+test_that("training data containing NA matches predict()", {
+  skip_if_not_installed("C50")
+  df <- mtcars
+  df$vs <- factor(df$vs)
+  df$wt[1:5] <- NA_real_
+  model <- C50::C5.0(df[, c("wt", "cyl", "mpg")], df$vs)
+
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(model), df)),
+    as.character(predict(model, df))
+  )
+})
+
+test_that("an unused outcome level matches predict()", {
+  skip_if_not_installed("C50")
+  df <- mtcars
+  y <- factor(as.character(df$vs), levels = c("0", "1", "2"))
+  model <- C50::C5.0(df[, c("wt", "cyl", "mpg")], y)
+
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(model), df)),
+    as.character(predict(model, df))
+  )
+})
+
+test_that("ordered factor predictors match predict()", {
+  skip_if_not_installed("C50")
+  df <- mtcars
+  df$vs <- factor(df$vs)
+  df$o <- factor(df$gear, ordered = TRUE)
+  model <- C50::C5.0(df[, c("o", "wt")], df$vs)
+
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(model), df)),
+    as.character(predict(model, df))
+  )
+})
+
+test_that("a single-column model matrix matches predict()", {
+  skip_if_not_installed("C50")
+  df <- mtcars
+  df$vs <- factor(df$vs)
+  model <- C50::C5.0(df[, "wt", drop = FALSE], df$vs)
+
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(model), df)),
+    as.character(predict(model, df))
+  )
+})
+
+test_that("newdata containing NA matches predict() (#387)", {
+  skip_if_not_installed("C50")
+  df <- mtcars
+  df$vs <- factor(df$vs)
+  model <- C50::C5.0(df[, c("wt", "cyl", "mpg")], df$vs)
+
+  nd <- df
+  nd$cyl[6:9] <- NA_real_
+
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(model), nd)),
+    as.character(predict(model, nd))
+  )
+})
+
+test_that("NA in a factor predictor matches predict() (#387)", {
+  skip_if_not_installed("C50")
+  set.seed(24)
+  n <- 400
+  df <- data.frame(
+    v1 = rnorm(n),
+    v2 = rnorm(n),
+    f1 = factor(sample(letters[1:4], n, TRUE)),
+    f2 = factor(sample(c("p", "q", "r", "s", "t"), n, TRUE))
+  )
+  lp <- df$v1 -
+    2 * df$v2 +
+    0.7 * as.integer(df$f1) +
+    0.4 * as.integer(df$f2) +
+    rnorm(n)
+  df$g <- factor(c("A", "B", "C")[cut(lp, 3, labels = FALSE)])
+  model <- C50::C5.0(
+    g ~ .,
+    data = df,
+    control = C50::C5.0Control(subset = TRUE)
+  )
+
+  nd <- df
+  for (col in c("v1", "v2", "f1", "f2")) {
+    nd[[col]][sample(n, 60)] <- NA
+  }
+  expected <- as.character(predict(model, nd))
+
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(model), nd)),
+    expected
+  )
+  expect_equal(
+    as.character(rlang::eval_tidy(tidypredict_fit(parse_model(model)), nd)),
+    expected
+  )
+})
+
+test_that("class probabilities with NA in newdata match predict() (#417)", {
+  skip_if_not_installed("C50")
+  set.seed(51)
+  n <- 400
+  df <- data.frame(
+    v1 = rnorm(n),
+    v2 = rnorm(n),
+    f1 = factor(sample(letters[1:4], n, TRUE))
+  )
+  lp <- df$v1 - 2 * df$v2 + 0.7 * as.integer(df$f1) + rnorm(n)
+  df$g <- factor(c("A", "B", "C")[cut(lp, 3, labels = FALSE)])
+  model <- C50::C5.0(g ~ ., data = df)
+
+  nd <- df
+  for (col in c("v1", "v2", "f1")) {
+    nd[[col]][sample(n, 60)] <- NA
+  }
+  expected <- predict(model, nd, type = "prob")
+
+  tree_info <- c50_classprob_tree_info(model)
+  for (cl in colnames(expected)) {
+    expect_equal(
+      rlang::eval_tidy(classprob_tree_expr(tree_info[[cl]]), nd),
+      unname(expected[, cl]),
+      tolerance = 1e-6
+    )
+  }
+})
+
 test_that("values on a cut boundary match C5.0's float comparison (#287)", {
+  skip_if_not_installed("C50")
   set.seed(3)
   n <- 600
   df <- as.data.frame(matrix(rnorm(n * 4), ncol = 4))

@@ -240,27 +240,21 @@ tidypredict_test.rpart <- function(
   test_results_numeric(base, te$fit_te, threshold, model$call)
 }
 
-# For {orbital}
-#' Extract classprob trees for rpart models
-#'
-#' For use in orbital package.
-#' @param model An rpart model object
-#' @keywords internal
+# Extractors --------------------------------------------------
+
 #' @export
-.extract_rpart_classprob <- function(model) {
-  if (!inherits(model, "rpart")) {
+tidypredict_class_exprs.rpart <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (x$method != "class") {
     cli::cli_abort(
-      "{.arg model} must be {.cls rpart}, not {.obj_type_friendly {model}}."
+      "Only classification models are supported, not {.code method = {x$method}}."
     )
   }
 
-  if (model$method != "class") {
-    cli::cli_abort(
-      "{.arg model} must be a classification model (method = 'class')."
-    )
-  }
-
-  lapply(rpart_classprob_tree_info(model), generate_nested_case_when_tree)
+  # rpart_classprob_tree_info() is already keyed by outcome level and lapply()
+  # keeps those names, which is what the generic promises.
+  lapply(rpart_classprob_tree_info(x), generate_nested_case_when_tree)
 }
 
 # One tree_info per outcome level, where the node predictions are the class
@@ -290,6 +284,40 @@ rpart_classprob_tree_info <- function(model) {
 
 # Parsed model builder ----------------------------
 
+#' @exportS3Method
 build_tree_formula.pm_tree_rpart <- function(model) {
   build_tree_formula_single(model)
+}
+
+# Output metadata ---------------------------------
+
+# The parsed form keeps only the tree, so the mode has to come off the fitted
+# object. `method` is the same signal `tidypredict_test.rpart()` uses.
+#' @export
+tidypredict_output_type.rpart <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (identical(x$method, "class")) {
+    return("class")
+  }
+  "numeric"
+}
+
+#' @export
+tidypredict_outcome_levels.rpart <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  if (identical(x$method, "class")) {
+    return(attr(x, "ylevels"))
+  }
+  NULL
+}
+
+#' @export
+tidypredict_normalized.rpart <- function(x, ...) {
+  rlang::check_dots_empty()
+
+  # One expression, a class label for a classification tree and a number for a
+  # regression one, so there are no per-level values to sum either way.
+  NA
 }
