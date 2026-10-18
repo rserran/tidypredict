@@ -1,5 +1,7 @@
 ## Comments
 
+Fixed vignette to stop error on CRAN
+
 ## R CMD check results
 
 * 0 errors | 0 warnings | 0 notes
